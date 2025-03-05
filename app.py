@@ -7,6 +7,8 @@ import openai
 import requests
 import os
 from dotenv import load_dotenv
+import feedparser
+import pandas as pd
 
 # Configure Streamlit page first - IMPORTANT
 st.set_page_config(
@@ -21,32 +23,30 @@ load_dotenv()
 # Configure OpenAI API
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Moved functions before main()
 def fetch_startup_news():
     try:
-        url = "https://techcrunch.com/category/startups/"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
+        # Multiple news sources for comprehensive coverage
+        news_sources = [
+            # TechCrunch Startup News
+            "https://techcrunch.com/category/startups/feed/",
+            # Indian Space News
+            "https://www.isro.gov.in/media/press-releases.rss",
+            # Global Space News
+            "https://www.nasa.gov/rss/dyn/breaking_news.rss"
+        ]
         
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+        all_news = []
+        for source in news_sources:
+            feed = feedparser.parse(source)
+            for entry in feed.entries[:5]:  # Limit to 5 news items per source
+                all_news.append({
+                    'title': entry.title,
+                    'link': entry.link,
+                    'source': feed.feed.title,
+                    'published': entry.published
+                })
         
-        # Simple text-based news extraction
-        news_list = []
-        content = response.text
-        headlines = [
-            line.strip() for line in content.split('\n') 
-            if 'startup' in line.lower() or 'funding' in line.lower()
-        ][:5]
-        
-        for headline in headlines:
-            news_list.append({
-                'title': headline,
-                'link': url  # Default link back to TechCrunch
-            })
-        
-        return news_list
+        return all_news
     
     except Exception as e:
         st.error(f"Error fetching news: {e}")
@@ -85,6 +85,13 @@ def main():
         with col2:
             purpose = st.selectbox("Presentation Purpose", ["Business", "Academic", "Pitch", "Report"])
         
+        # Detail Level Slider (Restored from original version)
+        detail_level = st.slider("How detailed should the AI analysis be? (1 - Basic, 10 - In-depth)", 1, 10, 5)
+        
+        # Desired Action Dropdown (Restored from original version)
+        desired_action = st.selectbox("What do you want to do with this content?", 
+                                      ["Summarize", "Extract Key Points", "Get AI Suggestions", "Detailed Review"])
+        
         # File Upload
         uploaded_file = st.file_uploader("Upload Presentation", type=["pptx", "pdf", "png", "jpg", "jpeg"])
         
@@ -100,12 +107,15 @@ def main():
                         messages=[
                             {"role": "system", "content": "You are a professional presentation analyzer."},
                             {"role": "user", "content": f"""
-                            Analyze this presentation for {purpose}, user type {user_category}.
-                            Provide constructive feedback on:
+                            Analyze this presentation for {purpose}, user type {user_category}, with detail level {detail_level}.
+                            Specific Action: {desired_action}
+                            
+                            Provide comprehensive feedback considering:
                             1. Content clarity
                             2. Structural effectiveness
                             3. Engagement potential
                             4. Areas of improvement
+                            5. Recommendations based on desired action
                             
                             Presentation Text:
                             {extracted_text}
@@ -131,9 +141,9 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            funding_stage = st.selectbox("Funding Stage", ["Pre-Seed", "Seed", "Series A"])
+            funding_stage = st.selectbox("Funding Stage", ["Pre-Seed", "Seed", "Series A", "Series B", "Growth Stage"])
         with col2:
-            industry = st.selectbox("Industry", ["Tech", "Healthcare", "Finance", "E-commerce"])
+            industry = st.selectbox("Industry", ["Tech", "Healthcare", "Finance", "E-commerce", "Deep Tech", "Green Energy", "AI/ML"])
         
         if st.button("Find Investors"):
             try:
@@ -147,6 +157,7 @@ def main():
                         - Relevant industry experience
                         - Stage-appropriate investment history
                         - Proven track record
+                        - Geographic considerations
                         
                         Startup Concept: {startup_idea}
                         """}
@@ -162,17 +173,23 @@ def main():
     
     # Startup News
     with tab3:
-        st.header("Latest Startup News")
+        st.header("Latest Startup & Space News")
         
         if st.button("Refresh News"):
-            with st.spinner("Fetching latest startup news..."):
+            with st.spinner("Fetching latest news..."):
                 news_data = fetch_startup_news()
                 
                 if news_data:
-                    for article in news_data:
+                    # Create a DataFrame for better presentation
+                    news_df = pd.DataFrame(news_data)
+                    
+                    for _, article in news_df.iterrows():
                         st.markdown(f"""
                         ### 📰 {article['title']}
+                        **Source**: {article['source']}
+                        **Published**: {article['published']}
                         [Read More]({article['link']})
+                        ---
                         """)
                 else:
                     st.warning("Could not fetch news at the moment. Please try again later.")
