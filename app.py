@@ -48,8 +48,7 @@ def fetch_enhanced_news():
     all_news = []
     
     for source in news_sources:
-         print(f"Source: {source['name']}")
-         print(f"Default Image URL: {source['default_image']}")
+        
         try:
             feed = feedparser.parse(source['url'])
             
