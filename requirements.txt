@@ -1,0 +1,8 @@
+streamlit
+pymupdf
+pytesseract
+python-pptx
+Pillow
+openai
+python-dotenv
+requests
