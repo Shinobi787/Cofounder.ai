@@ -228,8 +228,7 @@ def main():
                 st.error(f"Investor Matching Error: {e}")
     
     # Startup News Tab
-   # Startup News Tab
-with tab3:
+    with tab3:
     st.header("Latest Startup & Space News")
     
     # Refresh News Button
