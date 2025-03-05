@@ -136,6 +136,56 @@ def main():
                     st.info(feedback)
                 except Exception as e:
                     st.error(f"AI Analysis Error: {e}")
+      # Investor Matching Tab
+    with tab2:
+        st.header("Investor Matching")
+        
+        # Startup Details
+        startup_idea = st.text_area("Describe Your Startup Concept")
+        
+        # Funding and Industry Selection
+        col1, col2 = st.columns(2)
+        with col1:
+            funding_stage = st.selectbox("Funding Stage", [
+                "Pre-Seed", "Seed", "Series A", 
+                "Series B", "Growth Stage"
+            ])
+        
+        with col2:
+            industry = st.selectbox("Industry", [
+                "Tech", "Healthcare", "Finance", 
+                "E-commerce", "Deep Tech", 
+                "Green Energy", "AI/ML"
+            ])
+        
+        # Find Investors Button
+        if st.button("Find Investors"):
+            try:
+                response = openai.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are an expert startup investor matcher."},
+                        {"role": "user", "content": f"""
+                        Find top potential investors for a {industry} startup at {funding_stage} stage.
+                        
+                        Key Criteria:
+                        - Relevant industry experience
+                        - Stage-appropriate investment history
+                        - Proven track record
+                        - Geographic considerations
+                        
+                        Startup Concept: {startup_idea}
+                        """}
+                    ]
+                )
+                
+                # Display Recommended Investors
+                investors = response.choices[0].message.content
+                st.subheader("🌟 Recommended Investors")
+                st.success(investors)
+            
+            except Exception as e:
+                st.error(f"Investor Matching Error: {e}")
     
     with tab3:
         st.header("Startup News")
