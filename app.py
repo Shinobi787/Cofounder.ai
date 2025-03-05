@@ -100,75 +100,71 @@ def main():
     # Navigation Tabs
     tab1, tab2, tab3 = st.tabs(["📑 Slide Analyzer", "💰 Investor Matching", "📰 Startup News"])
     
-    # Slide Analyzer Tab
+   # Slide Analyzer
     with tab1:
         st.header("AI Slide Analyzer")
         
         # User Inputs
         col1, col2 = st.columns(2)
         with col1:
-            user_category = st.selectbox("Your Role", [
-                "Student", "Educator", "Business Professional", 
-                "Startup Founder", "Researcher"
-            ])
-        
+            user_category = st.selectbox("Your Role", ["Student", "Educator", "Business Professional", "Startup Founder"])
         with col2:
-            purpose = st.selectbox("Presentation Purpose", [
-                "Business Pitch", "Academic Presentation", 
-                "Investor Deck", "Training", "Research Proposal"
-            ])
-        
-        # Analysis Configuration
-        detail_level = st.slider(
-            "Analysis Depth", 
-            min_value=1, 
-            max_value=10, 
-            value=5, 
-            help="1 = Basic overview, 10 = Comprehensive detailed analysis"
-        )
+            purpose = st.selectbox("Presentation Purpose", ["Business", "Academic", "Pitch", "Report"])
         
         # File Upload
-        uploaded_file = st.file_uploader(
-            "Upload Presentation", 
-            type=["pptx", "pdf", "png", "jpg", "jpeg"],
-            help="Supported formats: PowerPoint, PDF, Images"
-        )
+        uploaded_file = st.file_uploader("Upload Presentation", type=["pptx", "pdf", "png", "jpg", "jpeg"])
+        
+        def extract_text(file):
+            try:
+                if file.type == "application/pdf":
+                    doc = fitz.open(stream=file.read(), filetype="pdf")
+                    return "\n".join([page.get_text("text") for page in doc])
+                elif file.type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+                    prs = Presentation(file)
+                    return "\n".join(["\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")]) for slide in prs.slides])
+                else:
+                    image = Image.open(file)
+                    return pytesseract.image_to_string(image)
+            except Exception as e:
+                st.error(f"Error processing file: {e}")
+                return ""
         
         if uploaded_file:
-            with st.spinner("Analyzing your presentation..."):
-                # Extract Text
-                extracted_text = extract_text(uploaded_file)
-                
-                # Perform AI Analysis
+            with st.spinner("Analyzing presentation..."):
                 try:
+                    # Safely extract text
+                    extracted_text = extract_text(uploaded_file)
+                    
+                    # Use newer OpenAI API method
                     response = openai.chat.completions.create(
-                        model="gpt-3.5-turbo",
+                        model="gpt-3.5-turbo",  # More accessible model
                         messages=[
                             {"role": "system", "content": "You are a professional presentation analyzer."},
                             {"role": "user", "content": f"""
-                            Analyze this presentation for {purpose}, user type {user_category}, 
-                            with detail level {detail_level}.
+                            Analyze this presentation for {purpose}, user type {user_category}.
+                            Provide constructive feedback on:
+                            1. Content clarity
+                            2. Structural effectiveness
+                            3. Engagement potential
+                            4. Areas of improvement
                             
-                            Provide comprehensive, constructive feedback:
-                            1. Content Clarity
-                            2. Structural Effectiveness
-                            3. Engagement Potential
-                            4. Areas of Improvement
-                            5. Actionable Recommendations
-                            
-                            Presentation Content:
+                            Presentation Text:
                             {extracted_text}
                             """}
                         ]
                     )
                     
+                    # Extract feedback
+                    feedback = response.choices[0].message.content
+                    
                     # Display Analysis
-                    analysis = response.choices[0].message.content
-                    st.subheader("🔍 AI Insights")
-                    st.info(analysis)
+                    st.subheader("🔍 AI Analysis")
+                    st.info(feedback)
                 
                 except Exception as e:
                     st.error(f"AI Analysis Error: {e}")
+    
+
     
     # Investor Matching Tab
     with tab2:
