@@ -110,6 +110,15 @@ def main():
             user_category = st.selectbox("Your Role", ["Student", "Educator", "Business Professional", "Startup Founder"])
         with col2:
             purpose = st.selectbox("Presentation Purpose", ["Business", "Academic", "Pitch", "Report"])
+            
+            # Analysis Configuration
+        detail_level = st.slider(
+            "Analysis Depth", 
+            min_value=1, 
+            max_value=10, 
+            value=5, 
+            help="1 = Basic overview, 10 = Comprehensive detailed analysis"
+        )
         
         # File Upload
         uploaded_file = st.file_uploader("Upload Presentation", type=["pptx", "pdf", "png", "jpg", "jpeg"])
