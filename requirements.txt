@@ -1,6 +1,6 @@
 streamlit
 python-dotenv
-openai==0.28
+openai
 PyMuPDF
 python-pptx
 Pillow
