@@ -8,4 +8,3 @@ pytesseract
 pandas
 feedparser
 requests
-typing
