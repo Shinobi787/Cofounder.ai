@@ -1,9 +1,10 @@
 streamlit
-pymupdf
-pytesseract
+python-dotenv
+openai
+PyMuPDF
 python-pptx
 Pillow
-openai
-python-dotenv
+pytesseract
+pandas
+feedparser
 requests
-beautifulsoup4
