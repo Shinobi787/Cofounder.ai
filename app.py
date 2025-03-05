@@ -9,193 +9,105 @@ import os
 from dotenv import load_dotenv
 import feedparser
 import pandas as pd
-import logging
-from typing import List, Dict, Any
 
-# Configure Logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
-logger = logging.getLogger(__name__)
+# Configure Streamlit page
+st.set_page_config(
+    page_title="Startup Analyzer", 
+    page_icon="📊", 
+    layout="wide"
+)
 
-# API Configuration
-class APIConfig:
-    """Centralized configuration for API management"""
-    @staticmethod
-    def configure_openai():
-        """Configure OpenAI API with error handling"""
+# Load environment variables
+load_dotenv()
+
+# Configure OpenAI API
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+def fetch_enhanced_news():
+    """
+    Fetch news from multiple sources with image extraction
+    """
+    news_sources = [
+        {
+            'name': 'TechCrunch',
+            'url': 'https://techcrunch.com/category/startups/feed/',
+            'default_image': 'https://techcrunch.com/wp-content/uploads/2023/01/startup-tech-logo.jpg'
+        },
+        {
+            'name': 'ISRO',
+            'url': 'https://www.isro.gov.in/media/press-releases.rss',
+            'default_image': 'https://www.isro.gov.in/sites/default/files/images/isro-logo.png'
+        },
+        {
+            'name': 'NASA',
+            'url': 'https://www.nasa.gov/rss/dyn/breaking_news.rss',
+            'default_image': 'https://www.nasa.gov/sites/default/files/thumbnails/image/nasa-logo.png'
+        }
+    ]
+    
+    all_news = []
+    
+    for source in news_sources:
         try:
-            load_dotenv()  # Load environment variables
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OpenAI API Key not found in environment variables")
-            openai.api_key = api_key
-        except Exception as e:
-            st.error(f"API Configuration Error: {e}")
-            logger.error(f"OpenAI API Configuration Failed: {e}")
-
-# News Management
-class NewsManager:
-    """Advanced news fetching and management"""
-    @staticmethod
-    def fetch_enhanced_news() -> List[Dict[str, Any]]:
-        """
-        Fetch comprehensive news from multiple sources with robust error handling
-        
-        Returns:
-            List of news dictionaries with enhanced information
-        """
-        news_sources = [
-            {
-                'name': 'TechCrunch Startups',
-                'url': 'https://techcrunch.com/category/startups/feed/',
-                'fallback_image': 'https://techcrunch.com/wp-content/uploads/2023/01/startup-icon.png'
-            },
-            {
-                'name': 'ISRO News',
-                'url': 'https://www.isro.gov.in/media/press-releases.rss',
-                'fallback_image': 'https://www.isro.gov.in/sites/default/files/images/isro-logo.png'
-            },
-            {
-                'name': 'NASA Breaking News',
-                'url': 'https://www.nasa.gov/rss/dyn/breaking_news.rss',
-                'fallback_image': 'https://www.nasa.gov/sites/default/files/thumbnails/image/nasa-logo.png'
-            }
-        ]
-        
-        all_news = []
-        
-        for source in news_sources:
-            try:
-                feed = feedparser.parse(source['url'])
+            feed = feedparser.parse(source['url'])
+            
+            for entry in feed.entries[:3]:  # Limit to 3 news items per source
+                # Try to extract an image from the entry
+                image_url = source['default_image']
                 
-                for entry in feed.entries[:3]:  # Limit entries per source
-                    news_item = {
-                        'title': entry.title,
-                        'link': entry.link,
-                        'source': source['name'],
-                        'published': entry.get('published', 'Unknown Date'),
-                        'image': source['fallback_image']
-                    }
-                    all_news.append(news_item)
+                # Add some metadata
+                news_item = {
+                    'title': entry.title,
+                    'link': entry.link,
+                    'source': source['name'],
+                    'published': entry.get('published', 'Recent'),
+                    'description': entry.get('summary', 'No description available'),
+                    'image': image_url
+                }
                 
-            except Exception as e:
-                logger.error(f"Error fetching news from {source['name']}: {e}")
-        
-        return all_news
-
-# Text Extraction Utility
-class TextExtractor:
-    """Advanced text extraction from various file types"""
-    @staticmethod
-    def extract_text(uploaded_file) -> str:
-        """
-        Extract text from different file types with comprehensive error handling
-        
-        Args:
-            uploaded_file: Streamlit uploaded file object
-        
-        Returns:
-            Extracted text or empty string
-        """
-        try:
-            if uploaded_file.type == "application/pdf":
-                doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-                return "\n".join([page.get_text("text") for page in doc])
-            
-            elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-                prs = Presentation(uploaded_file)
-                return "\n".join([
-                    "\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")])
-                    for slide in prs.slides
-                ])
-            
-            elif uploaded_file.type in ["image/png", "image/jpeg", "image/jpg"]:
-                image = Image.open(uploaded_file)
-                return pytesseract.image_to_string(image)
-            
-            else:
-                st.warning(f"Unsupported file type: {uploaded_file.type}")
-                return ""
+                all_news.append(news_item)
         
         except Exception as e:
-            st.error(f"Text Extraction Error: {e}")
-            logger.error(f"Text Extraction Failed: {e}")
-            return ""
+            st.error(f"Error fetching news from {source['name']}: {e}")
+    
+    return all_news
 
-# AI Analysis Services
-class AIAnalysisService:
-    """Centralized AI-powered analysis services"""
-    @staticmethod
-    def analyze_presentation(extracted_text: str, purpose: str, user_category: str, detail_level: int) -> str:
-        """
-        Perform AI-powered presentation analysis
-        
-        Args:
-            extracted_text: Text content of the presentation
-            purpose: Presentation purpose
-            user_category: User's professional category
-            detail_level: Depth of analysis
-        
-        Returns:
-            AI-generated analysis
-        """
-        try:
-            response = openai.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a professional presentation analyzer."},
-                    {"role": "user", "content": f"""
-                    Analyze this presentation for {purpose}, user type {user_category}, 
-                    with detail level {detail_level}.
-                    
-                    Provide comprehensive, constructive feedback:
-                    1. Content Clarity
-                    2. Structural Effectiveness
-                    3. Engagement Potential
-                    4. Areas of Improvement
-                    5. Actionable Recommendations
-                    
-                    Presentation Content:
-                    {extracted_text}
-                    """}
-                ]
-            )
-            return response.choices[0].message.content
-        
-        except Exception as e:
-            logger.error(f"AI Analysis Failed: {e}")
-            st.error("AI Analysis encountered an error. Please try again.")
-            return "Analysis could not be completed."
+def extract_text(file):
+    """
+    Extract text from different file types
+    """
+    try:
+        if file.type == "application/pdf":
+            doc = fitz.open(stream=file.read(), filetype="pdf")
+            return "\n".join([page.get_text("text") for page in doc])
+        elif file.type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+            prs = Presentation(file)
+            return "\n".join(["\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")]) for slide in prs.slides])
+        else:
+            image = Image.open(file)
+            return pytesseract.image_to_string(image)
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
+        return ""
 
 def main():
-    """Main Streamlit application entry point"""
-    # Page Configuration
-    st.set_page_config(
-        page_title="Startup Analyzer", 
-        page_icon="📊", 
-        layout="wide"
-    )
-    
-    # Initialize API Configuration
-    APIConfig.configure_openai()
-    
+    """
+    Main Streamlit application
+    """
     # Application Title
     st.title("🚀 Startup Slide & Investor Analyzer")
     
     # Navigation Tabs
-    tab1, tab2, tab3 = st.tabs([
-        "📑 Slide Analyzer", 
-        "💰 Investor Matching", 
-        "📰 Startup News"
-    ])
+    tab1, tab2, tab3 = st.tabs(["📑 Slide Analyzer", "💰 Investor Matching", "📰 Startup News"])
     
     # Slide Analyzer Tab
     with tab1:
-        st.header("AI Presentation Analysis")
+        st.header("AI Slide Analyzer")
         
         # User Inputs
         col1, col2 = st.columns(2)
         with col1:
-            user_category = st.selectbox("Your Professional Role", [
+            user_category = st.selectbox("Your Role", [
                 "Student", "Educator", "Business Professional", 
                 "Startup Founder", "Researcher"
             ])
@@ -225,19 +137,141 @@ def main():
         if uploaded_file:
             with st.spinner("Analyzing your presentation..."):
                 # Extract Text
-                extracted_text = TextExtractor.extract_text(uploaded_file)
+                extracted_text = extract_text(uploaded_file)
                 
                 # Perform AI Analysis
-                analysis = AIAnalysisService.analyze_presentation(
-                    extracted_text, purpose, user_category, detail_level
+                try:
+                    response = openai.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=[
+                            {"role": "system", "content": "You are a professional presentation analyzer."},
+                            {"role": "user", "content": f"""
+                            Analyze this presentation for {purpose}, user type {user_category}, 
+                            with detail level {detail_level}.
+                            
+                            Provide comprehensive, constructive feedback:
+                            1. Content Clarity
+                            2. Structural Effectiveness
+                            3. Engagement Potential
+                            4. Areas of Improvement
+                            5. Actionable Recommendations
+                            
+                            Presentation Content:
+                            {extracted_text}
+                            """}
+                        ]
+                    )
+                    
+                    # Display Analysis
+                    analysis = response.choices[0].message.content
+                    st.subheader("🔍 AI Insights")
+                    st.info(analysis)
+                
+                except Exception as e:
+                    st.error(f"AI Analysis Error: {e}")
+    
+    # Investor Matching Tab
+    with tab2:
+        st.header("Investor Matching")
+        
+        # Startup Details
+        startup_idea = st.text_area("Describe Your Startup Concept")
+        
+        # Funding and Industry Selection
+        col1, col2 = st.columns(2)
+        with col1:
+            funding_stage = st.selectbox("Funding Stage", [
+                "Pre-Seed", "Seed", "Series A", 
+                "Series B", "Growth Stage"
+            ])
+        
+        with col2:
+            industry = st.selectbox("Industry", [
+                "Tech", "Healthcare", "Finance", 
+                "E-commerce", "Deep Tech", 
+                "Green Energy", "AI/ML"
+            ])
+        
+        # Find Investors Button
+        if st.button("Find Investors"):
+            try:
+                response = openai.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are an expert startup investor matcher."},
+                        {"role": "user", "content": f"""
+                        Find top potential investors for a {industry} startup at {funding_stage} stage.
+                        
+                        Key Criteria:
+                        - Relevant industry experience
+                        - Stage-appropriate investment history
+                        - Proven track record
+                        - Geographic considerations
+                        
+                        Startup Concept: {startup_idea}
+                        """}
+                    ]
                 )
                 
-                # Display Analysis
-                st.subheader("🔍 AI Insights")
-                st.info(analysis)
+                # Display Recommended Investors
+                investors = response.choices[0].message.content
+                st.subheader("🌟 Recommended Investors")
+                st.success(investors)
+            
+            except Exception as e:
+                st.error(f"Investor Matching Error: {e}")
     
-    # Remaining tabs would follow similar modular design
-    # ... (code for other tabs remains similar)
+    # Startup News Tab
+    with tab3:
+        st.header("Latest Startup & Space News")
+        
+        # Refresh News Button
+        if st.button("Refresh News"):
+            with st.spinner("Fetching latest news..."):
+                news_data = fetch_enhanced_news()
+                
+                if news_data:
+                    # Create a grid layout for news
+                    for i in range(0, len(news_data), 3):
+                        cols = st.columns(3)
+                        
+                        for j in range(3):
+                            if i + j < len(news_data):
+                                news_item = news_data[i + j]
+                                
+                                with cols[j]:
+                                    # Display news card
+                                    st.image(news_item['image'], use_column_width=True)
+                                    st.markdown(f"### {news_item['title']}")
+                                    st.markdown(f"**Source**: {news_item['source']}")
+                                    st.markdown(f"**Published**: {news_item['published']}")
+                                    st.markdown(f"*{news_item['description'][:100]}...*")
+                                    st.markdown(f"[Read More]({news_item['link']})")
+                
+                else:
+                    st.warning("Could not fetch news at the moment. Please try again later.")
 
+    # Add some custom CSS for better styling
+    st.markdown("""
+    <style>
+    .stApp {
+        background-color: #f0f2f6;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #ffffff;
+        border-radius: 10px;
+        padding: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #f1f3f7;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Run the main application
 if __name__ == "__main__":
     main()
