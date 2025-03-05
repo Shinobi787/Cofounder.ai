@@ -94,11 +94,13 @@ def main():
     with tab1:
         st.header("AI Slide Analyzer")
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             user_category = st.selectbox("Your Role", ["Student", "Educator", "Business Professional", "Startup Founder"])
         with col2:
             purpose = st.selectbox("Presentation Purpose", ["Business", "Academic", "Pitch", "Report"])
+        with col3:
+             desired_action = st.selectbox("What do you want to do with this content?", ["Summarize", "Extract Key Points", "Get AI Suggestions"])
             
         detail_level = st.slider(
             "Analysis Depth", 
