@@ -48,6 +48,8 @@ def fetch_enhanced_news():
     all_news = []
     
     for source in news_sources:
+         print(f"Source: {source['name']}")
+         print(f"Default Image URL: {source['default_image']}")
         try:
             feed = feedparser.parse(source['url'])
             
@@ -227,35 +229,39 @@ def main():
                 st.error(f"Investor Matching Error: {e}")
     
     # Startup News Tab
-    with tab3:
-        st.header("Latest Startup & Space News")
-        
-        # Refresh News Button
-        if st.button("Refresh News"):
-            with st.spinner("Fetching latest news..."):
-                news_data = fetch_enhanced_news()
-                
-                if news_data:
-                    # Create a grid layout for news
-                    for i in range(0, len(news_data), 3):
-                        cols = st.columns(3)
-                        
-                        for j in range(3):
-                            if i + j < len(news_data):
-                                news_item = news_data[i + j]
+   # Startup News Tab
+with tab3:
+    st.header("Latest Startup & Space News")
+    
+    # Refresh News Button
+    if st.button("Refresh News"):
+        with st.spinner("Fetching latest news..."):
+            news_data = fetch_enhanced_news()
+            
+            if news_data:
+                # Create a grid layout for news
+                for i in range(0, len(news_data), 3):
+                    cols = st.columns(3)
+                    
+                    for j in range(3):
+                        if i + j < len(news_data):
+                            news_item = news_data[i + j]
+                            
+                            with cols[j]:
+                                # Use use_container_width instead of use_column_width
+                                try:
+                                    st.image(news_item['image'], use_container_width=True)
+                                except Exception as e:
+                                    st.warning(f"Could not load image: {e}")
                                 
-                                with cols[j]:
-                                    # Display news card
-                                    st.image(news_item['image'], use_column_width=True)
-                                    st.markdown(f"### {news_item['title']}")
-                                    st.markdown(f"**Source**: {news_item['source']}")
-                                    st.markdown(f"**Published**: {news_item['published']}")
-                                    st.markdown(f"*{news_item['description'][:100]}...*")
-                                    st.markdown(f"[Read More]({news_item['link']})")
-                
-                else:
-                    st.warning("Could not fetch news at the moment. Please try again later.")
-
+                                st.markdown(f"### {news_item['title']}")
+                                st.markdown(f"**Source**: {news_item['source']}")
+                                st.markdown(f"**Published**: {news_item['published']}")
+                                st.markdown(f"*{news_item['description'][:100]}...*")
+                                st.markdown(f"[Read More]({news_item['link']})")
+            
+            else:
+                st.warning("Could not fetch news at the moment. Please try again later.")
     # Add some custom CSS for better styling
 
 # Responsive CSS
