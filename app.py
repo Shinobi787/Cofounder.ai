@@ -7,7 +7,13 @@ import openai
 import requests
 import os
 from dotenv import load_dotenv
-from bs4 import BeautifulSoup
+
+# Configure Streamlit page first - IMPORTANT
+st.set_page_config(
+    page_title="StartUp Analyzer", 
+    page_icon="📊", 
+    layout="wide"
+)
 
 # Load environment variables
 load_dotenv()
@@ -15,35 +21,30 @@ load_dotenv()
 # Configure OpenAI API
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Enhanced News Fetching Function
+# Moved functions before main()
 def fetch_startup_news():
     try:
-        # Use a more reliable news source
         url = "https://techcrunch.com/category/startups/"
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         
-        # Fetch and parse news
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Extract top 5 startup news headlines
-        news_articles = soup.find_all('div', class_='post-block')[:5]
-        
-        # Format news
+        # Simple text-based news extraction
         news_list = []
-        for article in news_articles:
-            title = article.find('h2', class_='post-block__title')
-            link = article.find('a', class_='post-block__title__link')
-            
-            if title and link:
-                news_list.append({
-                    'title': title.text.strip(),
-                    'link': link['href']
-                })
+        content = response.text
+        headlines = [
+            line.strip() for line in content.split('\n') 
+            if 'startup' in line.lower() or 'funding' in line.lower()
+        ][:5]
+        
+        for headline in headlines:
+            news_list.append({
+                'title': headline,
+                'link': url  # Default link back to TechCrunch
+            })
         
         return news_list
     
@@ -51,15 +52,23 @@ def fetch_startup_news():
         st.error(f"Error fetching news: {e}")
         return []
 
+def extract_text(file):
+    try:
+        if file.type == "application/pdf":
+            doc = fitz.open(stream=file.read(), filetype="pdf")
+            return "\n".join([page.get_text("text") for page in doc])
+        elif file.type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+            prs = Presentation(file)
+            return "\n".join(["\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")]) for slide in prs.slides])
+        else:
+            image = Image.open(file)
+            return pytesseract.image_to_string(image)
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
+        return ""
+
 def main():
-    # Page Configuration
-    st.set_page_config(
-        page_title="StartUp Analyzer", 
-        page_icon="📊", 
-        layout="wide"
-    )
-    
-    # Title
+    # Title (after page config)
     st.title("📊 StartUp Slide & Investor Analyzer")
     
     # Tabs
@@ -79,21 +88,6 @@ def main():
         # File Upload
         uploaded_file = st.file_uploader("Upload Presentation", type=["pptx", "pdf", "png", "jpg", "jpeg"])
         
-        def extract_text(file):
-            try:
-                if file.type == "application/pdf":
-                    doc = fitz.open(stream=file.read(), filetype="pdf")
-                    return "\n".join([page.get_text("text") for page in doc])
-                elif file.type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-                    prs = Presentation(file)
-                    return "\n".join(["\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")]) for slide in prs.slides])
-                else:
-                    image = Image.open(file)
-                    return pytesseract.image_to_string(image)
-            except Exception as e:
-                st.error(f"Error processing file: {e}")
-                return ""
-        
         if uploaded_file:
             with st.spinner("Analyzing presentation..."):
                 try:
@@ -102,7 +96,7 @@ def main():
                     
                     # Use newer OpenAI API method
                     response = openai.chat.completions.create(
-                        model="gpt-3.5-turbo",  # More accessible model
+                        model="gpt-3.5-turbo",  
                         messages=[
                             {"role": "system", "content": "You are a professional presentation analyzer."},
                             {"role": "user", "content": f"""
@@ -197,5 +191,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Run the main function
 if __name__ == "__main__":
     main()
