@@ -114,23 +114,24 @@ def main():
             with st.spinner("Analyzing presentation..."):
                 try:
                     extracted_text = extract_text(uploaded_file)
-                    response = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
-                        messages=[
-                            {"role": "system", "content": "You are a professional presentation analyzer."},
-                            {"role": "user", "content": f"""
-                            Analyze this presentation for {purpose}, user type {user_category}.
-                            Provide constructive feedback on:
-                            1. Content clarity
-                            2. Structural effectiveness
-                            3. Engagement potential
-                            4. Areas of improvement
-                            
-                            Presentation Text:
-                            {extracted_text}
-                            """}
-                        ]
-                    )
+                   response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": "You are a professional presentation analyzer."},
+        {"role": "user", "content": f"""
+        Analyze this presentation for {purpose}, user type {user_category}.
+        Provide constructive feedback on:
+        1. Content clarity
+        2. Structural effectiveness
+        3. Engagement potential
+        4. Areas of improvement
+        
+        Presentation Text:
+        {extracted_text}
+        """}
+    ]
+)
+
                     feedback = response["choices"][0]["message"]["content"]
                     st.subheader("🔍 AI Analysis")
                     st.info(feedback)
