@@ -252,24 +252,19 @@ def main():
                     st.warning("Could not fetch news at the moment. Please try again later.")
 
     # Add some custom CSS for better styling
-    st.markdown("""
-    <style>
-    .stApp {
-        background-color: #f0f2f6;
+
+# Responsive CSS
+st.markdown("""
+<style>
+@media (max-width: 768px) {
+    .reportview-container .main .block-container {
+        padding-top: 1rem;
+        padding-right: 1rem;
+        padding-left: 1rem;
+        padding-bottom: 1rem;
     }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #ffffff;
-        border-radius: 10px;
-        padding: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: #f1f3f7;
-    }
-    </style>
+}
+</style>
     """, unsafe_allow_html=True)
 
 # Run the main application
