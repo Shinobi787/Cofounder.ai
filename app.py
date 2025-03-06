@@ -211,7 +211,7 @@ def main():
                     )
         else:
             st.warning("No news available at the moment. Please try again later.")
-")
+
 
 if __name__ == "__main__":
     main()
