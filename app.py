@@ -192,14 +192,28 @@ def main():
             except Exception as e:
                 st.error(f"Investor Matching Error: {e}")                  
     
-    with tab3:
-        st.header("Startup News")
+ with tab3:
+        st.header("📰 Latest Startup News")
         news_items = fetch_enhanced_news()
-        for news in news_items:
-            st.subheader(news['title'])
-            st.image(news['image'], width=400)
-            st.write(news['description'])
-            st.markdown(f"[Read more]({news['link']})")
+        
+        if news_items:
+            for news in news_items:
+                with st.container():
+                    st.markdown(
+                        f"""
+                        <div style="border-radius: 10px; border: 1px solid #ddd; padding: 15px; margin: 10px 0; background-color: #f9f9f9;">
+                            <h3 style="color: #333;">{news['title']}</h3>
+                            <img src="{news['image']}" style="width:100%; max-height:200px; object-fit:cover; border-radius:5px;" onerror="this.onerror=null; this.src='{news_sources[0]['default_image']}'" />
+                            <p><strong>Source:</strong> {news['source']}</p>
+                            <p><strong>Published:</strong> {news['published']}</p>
+                            <p>{news['description'][:200]}...</p>
+                            <a href="{news['link']}" target="_blank" style="color: #007bff; text-decoration: none;">Read more</a>
+                        </div>
+                        """, unsafe_allow_html=True
+                    )
+        else:
+            st.warning("No news available at the moment. Please try again later.")
+")
 
 if __name__ == "__main__":
     main()
