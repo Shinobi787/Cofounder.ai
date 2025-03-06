@@ -21,7 +21,10 @@ st.set_page_config(
 load_dotenv()
 
 # Configure OpenAI API
-openai.api_key = os.getenv("OPENAI_API_KEY")
+import streamlit as st
+
+openai_api_key = st.secrets["OPENAI_API_KEY"]
+openai.api_key = openai_api_key
 
 def fetch_enhanced_news():
     """
