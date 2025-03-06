@@ -192,7 +192,7 @@ def main():
             except Exception as e:
                 st.error(f"Investor Matching Error: {e}")                  
     
- with tab3:
+    with tab3:
         st.header("📰 Latest Startup News")
         news_items = fetch_enhanced_news()
         
@@ -203,7 +203,7 @@ def main():
                         f"""
                         <div style="border-radius: 10px; border: 1px solid #ddd; padding: 15px; margin: 10px 0; background-color: #f9f9f9;">
                             <h3 style="color: #333;">{news['title']}</h3>
-                            <img src="{news['image']}" style="width:100%; max-height:200px; object-fit:cover; border-radius:5px;" onerror="this.onerror=null; this.src='{news_sources[0]['default_image']}'" />
+                            <img src="{news['image']}" style="width:100%; max-height:200px; object-fit:cover; border-radius:5px;" onerror="this.onerror=null; this.src='{news['image']}'" />
                             <p><strong>Source:</strong> {news['source']}</p>
                             <p><strong>Published:</strong> {news['published']}</p>
                             <p>{news['description'][:200]}...</p>
