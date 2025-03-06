@@ -18,6 +18,15 @@ st.set_page_config(
     layout="wide"
 )
 
+# Add custom CSS to fix the cursor issue in select boxes
+st.markdown("""
+<style>
+    div[data-baseweb="select"] > div {
+        cursor: pointer !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Configure OpenAI API
 openai_api_key = st.secrets["OPENAI_API_KEY"]
 openai.api_key = openai_api_key
@@ -304,7 +313,7 @@ def main():
             with st.spinner("Analyzing presentation..."):
                 try:
                     extracted_text = extract_text(uploaded_file)
-                    response = openai.ChatCompletion.create(
+                    response = openai.chat.completions.create(  # Updated to use chat.completions
                         model="gpt-3.5-turbo",
                         messages=[
                             {"role": "system", "content": "You are a professional presentation analyzer."},
@@ -321,7 +330,7 @@ def main():
                             """}
                         ]
                     )
-                    feedback = response["choices"][0]["message"]["content"]
+                    feedback = response.choices[0].message.content  # Updated to access content
                     st.subheader("🔍 AI Analysis")
                     st.info(feedback)
                 except Exception as e:
@@ -377,9 +386,9 @@ def main():
     with tab3:
         st.header("📰 Latest Startup News")
         
-        # Refresh button
+        # Refresh button - Fixed the rerun function
         if st.button("Refresh News"):
-            st.experimental_rerun()
+            st.rerun()  # Changed from st.experimental_rerun() to st.rerun()
         
         news_items = fetch_enhanced_news()
         
