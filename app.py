@@ -258,7 +258,8 @@ def match_investors(startup_idea, industry, funding_stage):
     # Optional: Use OpenAI to personalize recommendations based on startup idea
     if startup_idea.strip():
         try:
-            response = openai.chat.completions.create(
+            # Using the older OpenAI API format
+            response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "You are an expert startup investor matcher."},
@@ -272,8 +273,9 @@ def match_investors(startup_idea, industry, funding_stage):
                 ]
             )
             
-            analysis = response.choices[0].message.content
-        except:
+            analysis = response["choices"][0]["message"]["content"]
+        except Exception as e:
+            st.error(f"OpenAI API Error: {e}")
             analysis = f"This {industry} startup at {funding_stage} stage would likely appeal to investors focused on innovation, market potential, and scalability."
     else:
         analysis = f"For a {industry} startup at {funding_stage} stage, these investors have a proven track record."
@@ -313,7 +315,8 @@ def main():
             with st.spinner("Analyzing presentation..."):
                 try:
                     extracted_text = extract_text(uploaded_file)
-                    response = openai.chat.completions.create(  # Updated to use chat.completions
+                    # Using the older OpenAI API format
+                    response = openai.ChatCompletion.create(
                         model="gpt-3.5-turbo",
                         messages=[
                             {"role": "system", "content": "You are a professional presentation analyzer."},
@@ -330,7 +333,7 @@ def main():
                             """}
                         ]
                     )
-                    feedback = response.choices[0].message.content  # Updated to access content
+                    feedback = response["choices"][0]["message"]["content"]
                     st.subheader("🔍 AI Analysis")
                     st.info(feedback)
                 except Exception as e:
