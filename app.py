@@ -11,16 +11,88 @@ import pandas as pd
 import io
 from datetime import datetime
 
-# Configure Streamlit page
+# Configure Streamlit page with better layout and colors
 st.set_page_config(
-    page_title="Startup Analyzer", 
-    page_icon="📊", 
-    layout="wide"
+    page_title="cofounder.ai - Startup Intelligence Platform", 
+    page_icon="🚀", 
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Add custom CSS to fix the cursor issue in select boxes
+# Add custom CSS for better styling
 st.markdown("""
 <style>
+    /* Main styling */
+    .stApp {
+        background-color: #f8f9fa;
+    }
+    
+    /* Header styling */
+    .st-emotion-cache-10trblm {
+        color: #2c3e50;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background-color: #f8f9fa;
+        border-radius: 8px 8px 0 0;
+        padding: 10px 20px;
+        transition: all 0.3s ease;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #e9ecef;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #2c3e50;
+        color: white;
+    }
+    
+    /* Button styling */
+    .stButton>button {
+        background-color: #2c3e50;
+        color: white;
+        border-radius: 8px;
+        padding: 8px 16px;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton>button:hover {
+        background-color: #1a252f;
+        color: white;
+    }
+    
+    /* Card styling for news */
+    .news-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        padding: 15px;
+        margin-bottom: 20px;
+        background-color: white;
+        transition: transform 0.3s ease;
+    }
+    
+    .news-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Investor card styling */
+    .investor-card {
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        padding: 15px;
+        margin-bottom: 15px;
+        background-color: white;
+        border-left: 4px solid #2c3e50;
+    }
+    
+    /* Fix select box cursor */
     div[data-baseweb="select"] > div {
         cursor: pointer !important;
     }
@@ -168,18 +240,38 @@ def load_indian_investors():
 
 def fetch_enhanced_news():
     """
-    Fetch news from multiple sources with image extraction
+    Fetch news from multiple sources with image extraction and classification
     """
     news_sources = [
         {
-            'name': 'TechCrunch',
+            'name': 'TechCrunch Startups',
             'url': 'https://techcrunch.com/category/startups/feed/',
-            'default_image': 'https://techcrunch.com/wp-content/uploads/2023/01/startup-tech-logo.jpg'
+            'default_image': 'https://techcrunch.com/wp-content/uploads/2023/01/startup-tech-logo.jpg',
+            'category': 'Tech Startups'
         },
         {
-            'name': 'NASA',
-            'url': 'https://www.nasa.gov/rss/dyn/breaking_news.rss',
-            'default_image': 'https://www.nasa.gov/sites/default/files/thumbnails/image/nasa-logo.png'
+            'name': 'TechCrunch AI',
+            'url': 'https://techcrunch.com/category/artificial-intelligence/feed/',
+            'default_image': 'https://techcrunch.com/wp-content/uploads/2021/07/GettyImages-1207206237.jpg',
+            'category': 'AI/ML'
+        },
+        {
+            'name': 'TechCrunch Fintech',
+            'url': 'https://techcrunch.com/category/fintech/feed/',
+            'default_image': 'https://techcrunch.com/wp-content/uploads/2020/10/GettyImages-1021295824.jpg',
+            'category': 'FinTech'
+        },
+        {
+            'name': 'Y Combinator Blog',
+            'url': 'https://blog.ycombinator.com/feed/',
+            'default_image': 'https://blog.ycombinator.com/wp-content/uploads/2019/03/yc-logo.png',
+            'category': 'Startup Advice'
+        },
+        {
+            'name': 'The Ken',
+            'url': 'https://the-ken.com/feed/',
+            'default_image': 'https://the-ken.com/wp-content/uploads/2020/10/the-ken-logo.png',
+            'category': 'Asian Startups'
         }
     ]
     
@@ -189,15 +281,43 @@ def fetch_enhanced_news():
         try:
             feed = feedparser.parse(source['url'])
             
-            for entry in feed.entries[:3]:
+            for entry in feed.entries[:5]:  # Get more entries to find ones with images
+                # Try to find an image in the entry
                 image_url = source['default_image']
                 
+                # Check for media content in the entry
+                if hasattr(entry, 'media_content'):
+                    for media in entry.media_content:
+                        if media.get('type', '').startswith('image/'):
+                            image_url = media['url']
+                            break
+                
+                # Check for enclosures
+                elif hasattr(entry, 'enclosures'):
+                    for enclosure in entry.enclosures:
+                        if enclosure.get('type', '').startswith('image/'):
+                            image_url = enclosure['href']
+                            break
+                
+                # Check for image in content
+                elif hasattr(entry, 'content'):
+                    for content in entry.content:
+                        if '<img' in content.value:
+                            import re
+                            img_match = re.search(r'<img[^>]+src="([^">]+)"', content.value)
+                            if img_match:
+                                image_url = img_match.group(1)
+                                break
+                
                 # Try to download the image
+                image_data = None
                 try:
-                    response = requests.get(image_url)
-                    image_data = response.content if response.status_code == 200 else None
+                    response = requests.get(image_url, timeout=5)
+                    if response.status_code == 200:
+                        if 'image' in response.headers.get('Content-Type', ''):
+                            image_data = response.content
                 except:
-                    image_data = None
+                    pass
                 
                 news_item = {
                     'title': entry.title,
@@ -206,7 +326,8 @@ def fetch_enhanced_news():
                     'published': entry.get('published', 'Recent'),
                     'description': entry.get('summary', 'No description available'),
                     'image_url': image_url,
-                    'image_data': image_data
+                    'image_data': image_data,
+                    'category': source['category']
                 }
                 
                 all_news.append(news_item)
@@ -258,9 +379,8 @@ def match_investors(startup_idea, industry, funding_stage):
     # Optional: Use OpenAI to personalize recommendations based on startup idea
     if startup_idea.strip():
         try:
-            # Using the older OpenAI API format
             response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4.1",
                 messages=[
                     {"role": "system", "content": "You are an expert startup investor matcher."},
                     {"role": "user", "content": f"""
@@ -286,7 +406,13 @@ def main():
     """
     Main Streamlit application
     """
-    st.title("🚀 Startup Slide & Investor Analyzer")
+    # Custom header with logo and tagline
+    st.markdown("""
+    <div style="background-color:#2c3e50;padding:20px;border-radius:10px;margin-bottom:30px">
+        <h1 style="color:white;text-align:center;">🚀 cofounder.ai</h1>
+        <p style="color:white;text-align:center;margin-bottom:0;">Your AI-powered startup intelligence platform</p>
+    </div>
+    """, unsafe_allow_html=True)
     
     tab1, tab2, tab3 = st.tabs(["📑 Slide Analyzer", "💰 Investor Matching", "📰 Startup News"])
     
@@ -315,9 +441,8 @@ def main():
             with st.spinner("Analyzing presentation..."):
                 try:
                     extracted_text = extract_text(uploaded_file)
-                    # Using the older OpenAI API format
                     response = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
+                        model="gpt-4.1",
                         messages=[
                             {"role": "system", "content": "You are a professional presentation analyzer."},
                             {"role": "user", "content": f"""
@@ -334,17 +459,23 @@ def main():
                         ]
                     )
                     feedback = response["choices"][0]["message"]["content"]
-                    st.subheader("🔍 AI Analysis")
-                    st.info(feedback)
+                    
+                    # Display feedback in a styled container
+                    with st.expander("🔍 AI Analysis Results", expanded=True):
+                        st.markdown(f"""
+                        <div style="background-color:#f0f2f6;padding:15px;border-radius:10px;">
+                            {feedback}
+                        </div>
+                        """, unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"AI Analysis Error: {e}")
     
-    # Enhanced Investor Matching Tab
     with tab2:
         st.header("Investor Matching - India's Top Investors")
         
         # Startup Details
-        startup_idea = st.text_area("Describe Your Startup Concept", height=150)
+        startup_idea = st.text_area("Describe Your Startup Concept", height=150, 
+                                   placeholder="Describe your startup idea in 2-3 sentences...")
         
         # Funding and Industry Selection
         col1, col2 = st.columns(2)
@@ -361,70 +492,86 @@ def main():
                 "Green Energy", "AI/ML"
             ])
         
-        # Find Investors Button
-        if st.button("Find Matching Investors"):
-            with st.spinner("Matching with top investors..."):
+        # Find Investors Button with better styling
+        if st.button("🚀 Find Matching Investors", use_container_width=True):
+            with st.spinner("Analyzing your startup and matching with top investors..."):
                 matched_investors, analysis = match_investors(startup_idea, industry, funding_stage)
                 
-                # Display analysis
+                # Display analysis in a styled container
                 st.subheader("🔍 Startup Analysis")
-                st.write(analysis)
+                st.markdown(f"""
+                <div style="background-color:#e8f4fd;padding:15px;border-radius:10px;border-left:4px solid #2c3e50;">
+                    {analysis}
+                </div>
+                """, unsafe_allow_html=True)
                 
                 # Display matched investors
                 st.subheader("🌟 Top Recommended Investors")
                 
-                # Display investors in a more attractive format
+                # Display investors in cards
                 for i, investor in enumerate(matched_investors):
-                    with st.expander(f"{i+1}. {investor['name']} - {investor['focus']}"):
-                        col1, col2 = st.columns([1, 2])
-                        with col1:
-                            st.markdown(f"**Location:** {investor['location']}")
-                            st.markdown(f"**Typical Investment:** {investor['typical_check']}")
-                        with col2:
-                            st.markdown(f"**Focus Areas:** {investor['focus']}")
-                            st.markdown(f"**Notable Investments:** {investor['portfolio']}")
-                            st.markdown(f"**Website:** [{investor['website']}]({investor['website']})")
+                    st.markdown(f"""
+                    <div class="investor-card">
+                        <h3>{i+1}. {investor['name']}</h3>
+                        <p><strong>Focus:</strong> {investor['focus']}</p>
+                        <p><strong>Location:</strong> {investor['location']}</p>
+                        <p><strong>Typical Investment:</strong> {investor['typical_check']}</p>
+                        <p><strong>Notable Investments:</strong> {investor['portfolio']}</p>
+                        <p><a href="{investor['website']}" target="_blank">Visit Website</a></p>
+                    </div>
+                    """, unsafe_allow_html=True)
     
-    # Fixed News Tab
     with tab3:
         st.header("📰 Latest Startup News")
         
-        # Refresh button - Fixed the rerun function
-        if st.button("Refresh News"):
-            st.rerun()  # Changed from st.experimental_rerun() to st.rerun()
+        # Refresh button with better styling
+        if st.button("🔄 Refresh News", key="refresh_news"):
+            st.rerun()
         
+        # Add news category filter
         news_items = fetch_enhanced_news()
         
         if news_items:
+            # Get unique categories
+            categories = list(set([item['category'] for item in news_items]))
+            categories.insert(0, "All Categories")
+            
+            selected_category = st.selectbox("Filter by Category", categories)
+            
+            # Filter news by category
+            if selected_category != "All Categories":
+                news_items = [item for item in news_items if item['category'] == selected_category]
+            
             # Create 3-column layout
             cols = st.columns(3)
             
-            # Display news items in columns
+            # Display news items in cards
             for i, news in enumerate(news_items):
                 col = cols[i % 3]  # Distribute across columns
                 
                 with col:
-                    st.subheader(news['title'])
+                    # Create a news card
+                    st.markdown(f"""
+                    <div class="news-card">
+                        <h4>{news['title']}</h4>
+                        <p><small><strong>{news['source']}</strong> | {news['category']}</small></p>
+                        <p><small>{news['published']}</small></p>
+                    """, unsafe_allow_html=True)
                     
-                    # Display image using Streamlit's native component
+                    # Display image if available
                     if news['image_data']:
                         try:
                             image = Image.open(io.BytesIO(news['image_data']))
                             st.image(image, use_container_width=True)
                         except Exception as e:
-                            st.warning(f"Could not display image: {e}")
-                            st.markdown(f"[Image Link]({news['image_url']})")
+                            st.warning("Could not display image")
                     
-                    st.markdown(f"**Source**: {news['source']}")
-                    st.markdown(f"**Published**: {news['published']}")
-                    
-                    # Clean HTML from description
-                    import re
-                    description = re.sub('<.*?>', '', news['description'])
-                    st.markdown(f"{description[:200]}...")
-                    
-                    st.markdown(f"[Read more]({news['link']})")
-                    st.markdown("---")
+                    # Continue the card HTML
+                    st.markdown(f"""
+                        <p>{news['description'][:150]}...</p>
+                        <a href="{news['link']}" target="_blank">Read more</a>
+                    </div>
+                    """, unsafe_allow_html=True)
         else:
             st.warning("No news available at the moment. Please try again later.")
 
