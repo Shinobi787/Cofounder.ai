@@ -1,579 +1,556 @@
 import streamlit as st
-import fitz  # PyMuPDF for PDFs
-import pytesseract  # OCR for images
+import fitz  # PyMuPDF
+import pytesseract
 from pptx import Presentation
 from PIL import Image
 import openai
 import requests
-import os
 import feedparser
 import pandas as pd
 import io
+import time
 from datetime import datetime
+import json
+import stripe
 
-# Configure Streamlit page with better layout and colors
+# Configure Stripe for payments (you'll need to set up your Stripe account)
+stripe.api_key = st.secrets["STRIPE_API_KEY"]
+
+# Premium features configuration
+PREMIUM_FEATURES = {
+    "investor_contact_info": True,
+    "detailed_funding_reports": True,
+    "competitor_analysis": True,
+    "market_size_estimates": True,
+    "export_reports": True
+}
+
+# Configure Streamlit page with premium look
 st.set_page_config(
-    page_title="cofounder.ai - Startup Intelligence Platform", 
-    page_icon="🚀", 
+    page_title="cofounder.ai | Startup Intelligence Platform",
+    page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Add custom CSS for better styling
+# Premium CSS styling
 st.markdown("""
 <style>
-    /* Main styling */
+    /* Main app styling */
     .stApp {
-        background-color: #f8f9fa;
+        background-color: #f9fafc;
     }
     
-    /* Header styling */
-    .st-emotion-cache-10trblm {
-        color: #2c3e50;
-    }
-    
-    /* Tab styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background-color: #f8f9fa;
-        border-radius: 8px 8px 0 0;
-        padding: 10px 20px;
-        transition: all 0.3s ease;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: #e9ecef;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #2c3e50;
+    /* Premium header */
+    .premium-header {
+        background: linear-gradient(135deg, #6e48aa 0%, #9d50bb 100%);
         color: white;
+        padding: 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     }
     
-    /* Button styling */
+    /* Premium cards */
+    .premium-card {
+        border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        background: white;
+        border-left: 5px solid #6e48aa;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .premium-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+    }
+    
+    /* Premium button */
     .stButton>button {
-        background-color: #2c3e50;
+        background: linear-gradient(135deg, #6e48aa 0%, #9d50bb 100%);
         color: white;
+        border: none;
         border-radius: 8px;
-        padding: 8px 16px;
+        padding: 0.5rem 1.5rem;
+        font-weight: 600;
         transition: all 0.3s ease;
     }
     
     .stButton>button:hover {
-        background-color: #1a252f;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(110,72,170,0.3);
         color: white;
     }
     
-    /* Card styling for news */
-    .news-card {
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        padding: 15px;
-        margin-bottom: 20px;
-        background-color: white;
-        transition: transform 0.3s ease;
+    /* Premium tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
     }
     
-    .news-card:hover {
+    .stTabs [data-baseweb="tab"] {
+        background: #f3f4f6;
+        border-radius: 8px 8px 0 0;
+        padding: 0.75rem 1.5rem;
+        transition: all 0.3s ease;
+        font-weight: 500;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background: #e5e7eb;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #6e48aa 0%, #9d50bb 100%);
+        color: white;
+    }
+    
+    /* Lock icon for premium features */
+    .premium-lock {
+        color: #9d50bb;
+        font-size: 1rem;
+        margin-left: 0.5rem;
+    }
+    
+    /* Subscription plans */
+    .pricing-card {
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        background: white;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        border: 1px solid #e5e7eb;
+    }
+    
+    .pricing-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        border-color: #9d50bb;
     }
     
-    /* Investor card styling */
-    .investor-card {
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        padding: 15px;
-        margin-bottom: 15px;
-        background-color: white;
-        border-left: 4px solid #2c3e50;
+    .pricing-card.featured {
+        border: 2px solid #6e48aa;
+        position: relative;
     }
     
-    /* Fix select box cursor */
-    div[data-baseweb="select"] > div {
-        cursor: pointer !important;
+    .featured-badge {
+        position: absolute;
+        top: -12px;
+        right: 20px;
+        background: #6e48aa;
+        color: white;
+        padding: 0.25rem 1rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
 
+# Initialize session state for authentication
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+if 'premium_user' not in st.session_state:
+    st.session_state.premium_user = False
+
 # Configure OpenAI API
-openai_api_key = st.secrets["OPENAI_API_KEY"]
-openai.api_key = openai_api_key
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Indian investors database
-def load_indian_investors():
-    """
-    Load curated list of top Indian investors with their preferences
-    """
-    investors_data = {
-        "Early Stage (Pre-Seed/Seed)": [
-            {
-                "name": "Blume Ventures",
-                "focus": "Consumer Internet, Enterprise Software, Deep Tech",
-                "typical_check": "$500K - $1.5M",
-                "portfolio": "Unacademy, Dunzo, Purplle",
-                "location": "Mumbai",
-                "website": "https://blume.vc"
-            },
-            {
-                "name": "Sequoia Surge",
-                "focus": "Consumer, SaaS, FinTech, EdTech",
-                "typical_check": "$1M - $2M",
-                "portfolio": "CRED, Khatabook, Classplus",
-                "location": "Bengaluru",
-                "website": "https://www.sequoiacap.com/india/surge/"
-            },
-            {
-                "name": "3one4 Capital",
-                "focus": "SaaS, Enterprise, FinTech, Consumer",
-                "typical_check": "$500K - $3M",
-                "portfolio": "Licious, DarwinBox, Betterplace",
-                "location": "Bengaluru",
-                "website": "https://3one4capital.com/"
-            },
-            {
-                "name": "Accel India",
-                "focus": "SaaS, Consumer Tech, Healthcare",
-                "typical_check": "$1M - $5M",
-                "portfolio": "Flipkart, Freshworks, Swiggy",
-                "location": "Bengaluru",
-                "website": "https://www.accel.com/india"
-            },
-            {
-                "name": "Kalaari Capital",
-                "focus": "E-commerce, Health, Education",
-                "typical_check": "$1M - $5M",
-                "portfolio": "Urban Ladder, Myntra, Snapdeal",
-                "location": "Bengaluru",
-                "website": "https://www.kalaari.com/"
-            }
-        ],
-        "Growth Stage (Series A/B)": [
-            {
-                "name": "Lightspeed India",
-                "focus": "Consumer Tech, Enterprise, FinTech",
-                "typical_check": "$5M - $20M",
-                "portfolio": "OYO, Udaan, ShareChat",
-                "location": "Delhi",
-                "website": "https://lsvp.com/india/"
-            },
-            {
-                "name": "Matrix Partners India",
-                "focus": "Consumer Tech, FinTech, SaaS",
-                "typical_check": "$5M - $25M",
-                "portfolio": "Ola, Dailyhunt, Razorpay",
-                "location": "Mumbai",
-                "website": "https://www.matrixpartners.in/"
-            },
-            {
-                "name": "Elevation Capital",
-                "focus": "Consumer Internet, SaaS, FinTech",
-                "typical_check": "$5M - $15M",
-                "portfolio": "Paytm, Swiggy, Urban Company",
-                "location": "Gurgaon",
-                "website": "https://www.elevation.capital/"
-            },
-            {
-                "name": "Nexus Venture Partners",
-                "focus": "Enterprise, Consumer, Healthcare",
-                "typical_check": "$2M - $10M",
-                "portfolio": "Delhivery, Postman, Rapido",
-                "location": "Mumbai",
-                "website": "https://nexusvp.com/"
-            },
-            {
-                "name": "Chiratae Ventures",
-                "focus": "Consumer, Enterprise, Health, FinTech",
-                "typical_check": "$2M - $15M",
-                "portfolio": "Lenskart, PolicyBazaar, Cure.fit",
-                "location": "Bengaluru",
-                "website": "https://chiratae.com/"
-            }
-        ],
-        "Late Stage (Series C+)": [
-            {
-                "name": "Peak XV Partners (formerly Sequoia India)",
-                "focus": "Multi-sector",
-                "typical_check": "$20M+",
-                "portfolio": "BYJU'S, Zomato, Gojek",
-                "location": "Bengaluru",
-                "website": "https://www.peakxv.com/"
-            },
-            {
-                "name": "Tiger Global",
-                "focus": "Internet, Software, Consumer, FinTech",
-                "typical_check": "$20M - $100M+",
-                "portfolio": "Flipkart, BYJU'S, Razorpay",
-                "location": "Global with India focus",
-                "website": "https://www.tigerglobal.com/"
-            },
-            {
-                "name": "SoftBank Vision Fund",
-                "focus": "AI, Platform Businesses, Consumer Tech",
-                "typical_check": "$100M+",
-                "portfolio": "Paytm, OYO, Delhivery",
-                "location": "Global with India office",
-                "website": "https://thevisionfund.com/"
-            },
-            {
-                "name": "Steadview Capital",
-                "focus": "Consumer, FinTech, SaaS",
-                "typical_check": "$20M - $100M",
-                "portfolio": "Nykaa, Polygon, Zenoti",
-                "location": "Hong Kong/India",
-                "website": "https://www.steadview.com/"
-            },
-            {
-                "name": "DST Global",
-                "focus": "Internet Companies, Late Stage",
-                "typical_check": "$50M+",
-                "portfolio": "Swiggy, BYJU'S, Ola",
-                "location": "Global with India investments",
-                "website": "https://dst-global.com/"
-            }
-        ]
-    }
-    return investors_data
+# ========== MONETIZATION FUNCTIONS ==========
+def show_pricing_plans():
+    """Display pricing plans for premium features"""
+    st.header("🚀 Upgrade to Premium")
+    st.markdown("Unlock powerful startup intelligence tools to accelerate your fundraising and growth")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        <div class="pricing-card">
+            <h3>Founder</h3>
+            <h2>$29/month</h2>
+            <p>Perfect for early-stage founders</p>
+            <hr>
+            <p>✓ Basic investor matching</p>
+            <p>✓ 10 AI analyses/month</p>
+            <p>✓ Standard reports</p>
+            <p>✗ No competitor analysis</p>
+            <p>✗ No investor contacts</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Choose Founder Plan", key="founder_plan"):
+            handle_subscription("price_1P9Z3jSB2J9X9X9X9X9X9X9X")  # Example Stripe price ID
+    
+    with col2:
+        st.markdown("""
+        <div class="pricing-card featured">
+            <div class="featured-badge">POPULAR</div>
+            <h3>Startup Pro</h3>
+            <h2>$99/month</h2>
+            <p>For serious fundraising</p>
+            <hr>
+            <p>✓ Advanced investor matching</p>
+            <p>✓ 50 AI analyses/month</p>
+            <p>✓ Detailed reports</p>
+            <p>✓ Competitor analysis</p>
+            <p>✓ Investor email contacts</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Choose Startup Pro Plan", key="pro_plan", type="primary"):
+            handle_subscription("price_1P9Z3jSB2J9X9X9X9X9X9X9X")  # Example Stripe price ID
+    
+    with col3:
+        st.markdown("""
+        <div class="pricing-card">
+            <h3>Enterprise</h3>
+            <h2>$299/month</h2>
+            <p>For VCs and accelerators</p>
+            <hr>
+            <p>✓ Unlimited investor matching</p>
+            <p>✓ Unlimited AI analyses</p>
+            <p>✓ Premium reports</p>
+            <p>✓ Full competitor analysis</p>
+            <p>✓ Investor direct contacts</p>
+            <p>✓ API Access</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Choose Enterprise Plan", key="enterprise_plan"):
+            handle_subscription("price_1P9Z3jSB2J9X9X9X9X9X9X9X")  # Example Stripe price ID
 
-def fetch_enhanced_news():
-    """
-    Fetch news from multiple sources with image extraction and classification
-    """
-    news_sources = [
-        {
-            'name': 'TechCrunch Startups',
-            'url': 'https://techcrunch.com/category/startups/feed/',
-            'default_image': 'https://techcrunch.com/wp-content/uploads/2023/01/startup-tech-logo.jpg',
-            'category': 'Tech Startups'
-        },
-        {
-            'name': 'TechCrunch AI',
-            'url': 'https://techcrunch.com/category/artificial-intelligence/feed/',
-            'default_image': 'https://techcrunch.com/wp-content/uploads/2021/07/GettyImages-1207206237.jpg',
-            'category': 'AI/ML'
-        },
-        {
-            'name': 'TechCrunch Fintech',
-            'url': 'https://techcrunch.com/category/fintech/feed/',
-            'default_image': 'https://techcrunch.com/wp-content/uploads/2020/10/GettyImages-1021295824.jpg',
-            'category': 'FinTech'
-        },
-        {
-            'name': 'Y Combinator Blog',
-            'url': 'https://blog.ycombinator.com/feed/',
-            'default_image': 'https://blog.ycombinator.com/wp-content/uploads/2019/03/yc-logo.png',
-            'category': 'Startup Advice'
-        },
-        {
-            'name': 'The Ken',
-            'url': 'https://the-ken.com/feed/',
-            'default_image': 'https://the-ken.com/wp-content/uploads/2020/10/the-ken-logo.png',
-            'category': 'Asian Startups'
-        }
-    ]
-    
-    all_news = []
-    
-    for source in news_sources:
-        try:
-            feed = feedparser.parse(source['url'])
-            
-            for entry in feed.entries[:5]:  # Get more entries to find ones with images
-                # Try to find an image in the entry
-                image_url = source['default_image']
-                
-                # Check for media content in the entry
-                if hasattr(entry, 'media_content'):
-                    for media in entry.media_content:
-                        if media.get('type', '').startswith('image/'):
-                            image_url = media['url']
-                            break
-                
-                # Check for enclosures
-                elif hasattr(entry, 'enclosures'):
-                    for enclosure in entry.enclosures:
-                        if enclosure.get('type', '').startswith('image/'):
-                            image_url = enclosure['href']
-                            break
-                
-                # Check for image in content
-                elif hasattr(entry, 'content'):
-                    for content in entry.content:
-                        if '<img' in content.value:
-                            import re
-                            img_match = re.search(r'<img[^>]+src="([^">]+)"', content.value)
-                            if img_match:
-                                image_url = img_match.group(1)
-                                break
-                
-                # Try to download the image
-                image_data = None
-                try:
-                    response = requests.get(image_url, timeout=5)
-                    if response.status_code == 200:
-                        if 'image' in response.headers.get('Content-Type', ''):
-                            image_data = response.content
-                except:
-                    pass
-                
-                news_item = {
-                    'title': entry.title,
-                    'link': entry.link,
-                    'source': source['name'],
-                    'published': entry.get('published', 'Recent'),
-                    'description': entry.get('summary', 'No description available'),
-                    'image_url': image_url,
-                    'image_data': image_data,
-                    'category': source['category']
-                }
-                
-                all_news.append(news_item)
-        
-        except Exception as e:
-            st.error(f"Error fetching news from {source['name']}: {e}")
-    
-    return all_news
-
-def extract_text(file):
-    """
-    Extract text from different file types
-    """
+def handle_subscription(price_id):
+    """Handle Stripe subscription"""
     try:
-        if file.type == "application/pdf":
-            doc = fitz.open(stream=file.read(), filetype="pdf")
-            return "\n".join([page.get_text("text") for page in doc])
-        elif file.type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-            prs = Presentation(file)
-            return "\n".join(["\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")]) for slide in prs.slides])
-        else:
-            image = Image.open(file)
-            return pytesseract.image_to_string(image)
+        checkout_session = stripe.checkout.Session.create(
+            line_items=[
+                {
+                    'price': price_id,
+                    'quantity': 1,
+                },
+            ],
+            mode='subscription',
+            success_url=st.secrets["STRIPE_SUCCESS_URL"],
+            cancel_url=st.secrets["STRIPE_CANCEL_URL"],
+        )
+        st.session_state.stripe_session_id = checkout_session.id
+        st.write(f"Please complete your payment [here]({checkout_session.url})")
     except Exception as e:
-        st.error(f"Error processing file: {e}")
-        return ""
+        st.error(f"Error creating checkout session: {e}")
 
-def match_investors(startup_idea, industry, funding_stage):
-    """
-    Match startup to relevant investors based on database
-    """
-    investors_db = load_indian_investors()
+def check_premium_access():
+    """Check if user has premium access"""
+    # In a real app, you would check against your user database
+    return st.session_state.premium_user
+
+def show_premium_lock(feature_name):
+    """Show premium lock for features"""
+    st.warning(f"🔒 {feature_name} is a premium feature. Upgrade to access this functionality.")
+    if st.button("Upgrade Now"):
+        show_pricing_plans()
+
+# ========== CORE BUSINESS FUNCTIONS ==========
+def generate_competitor_analysis(startup_idea, industry):
+    """Generate detailed competitor analysis using AI"""
+    if not check_premium_access():
+        show_premium_lock("Competitor Analysis")
+        return None
     
-    # Map user-selected funding stage to database categories
-    stage_mapping = {
-        "Pre-Seed": "Early Stage (Pre-Seed/Seed)",
-        "Seed": "Early Stage (Pre-Seed/Seed)",
-        "Series A": "Growth Stage (Series A/B)",
-        "Series B": "Growth Stage (Series A/B)",
-        "Growth Stage": "Late Stage (Series C+)"
-    }
-    
-    # Get appropriate investor category
-    matched_stage = stage_mapping.get(funding_stage, "Early Stage (Pre-Seed/Seed)")
-    
-    # Get investors for that stage
-    relevant_investors = investors_db.get(matched_stage, [])
-    
-    # Optional: Use OpenAI to personalize recommendations based on startup idea
-    if startup_idea.strip():
+    with st.spinner("Analyzing competitors..."):
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a startup competitive intelligence analyst."},
+                    {"role": "user", "content": f"""
+                    Analyze the competitive landscape for this startup idea in the {industry} industry:
+                    
+                    {startup_idea}
+                    
+                    Provide:
+                    1. Direct competitors with their funding status
+                    2. Market positioning analysis
+                    3. Competitive advantages
+                    4. Potential threats
+                    5. Market share estimates
+                    """}
+                ]
+            )
+            return response["choices"][0]["message"]["content"]
+        except Exception as e:
+            st.error(f"Error generating analysis: {e}")
+            return None
+
+def generate_funding_strategy(startup_idea, industry, stage):
+    """Generate personalized funding strategy"""
+    with st.spinner("Creating funding strategy..."):
         try:
             response = openai.ChatCompletion.create(
                 model="gpt-4.1",
                 messages=[
-                    {"role": "system", "content": "You are an expert startup investor matcher."},
+                    {"role": "system", "content": "You are a startup funding strategist."},
                     {"role": "user", "content": f"""
-                    Analyze this startup idea in the {industry} industry at {funding_stage} stage:
+                    Create a detailed funding strategy for this {industry} startup at {stage} stage:
                     
                     {startup_idea}
                     
-                    Provide 3-5 most critical factors that would make this startup attractive to investors.
-                    """} 
+                    Include:
+                    1. Recommended funding sources
+                    2. Ideal investor profile
+                    3. Valuation benchmarks
+                    4. Funding timeline
+                    5. Key metrics to focus on
+                    """}
                 ]
             )
-            
-            analysis = response["choices"][0]["message"]["content"]
+            return response["choices"][0]["message"]["content"]
         except Exception as e:
-            st.error(f"OpenAI API Error: {e}")
-            analysis = f"This {industry} startup at {funding_stage} stage would likely appeal to investors focused on innovation, market potential, and scalability."
-    else:
-        analysis = f"For a {industry} startup at {funding_stage} stage, these investors have a proven track record."
-    
-    return relevant_investors, analysis
+            st.error(f"Error generating strategy: {e}")
+            return None
 
+def generate_pitch_deck_review(deck_text):
+    """Generate detailed pitch deck review"""
+    if not check_premium_access():
+        show_premium_lock("Pitch Deck Review")
+        return None
+    
+    with st.spinner("Analyzing pitch deck..."):
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-4.1",
+                messages=[
+                    {"role": "system", "content": "You are a pitch deck expert who has reviewed thousands of decks."},
+                    {"role": "user", "content": f"""
+                    Provide a detailed review of this pitch deck:
+                    
+                    {deck_text}
+                    
+                    Cover:
+                    1. Strengths and weaknesses
+                    2. Storytelling effectiveness
+                    3. Financial projections quality
+                    4. Design recommendations
+                    5. Suggested improvements
+                    """}
+                ]
+            )
+            return response["choices"][0]["message"]["content"]
+        except Exception as e:
+            st.error(f"Error analyzing deck: {e}")
+            return None
+
+# ========== MAIN APP ==========
 def main():
-    """
-    Main Streamlit application
-    """
-    # Custom header with logo and tagline
+    """Main application interface"""
+    
+    # Premium header
     st.markdown("""
-    <div style="background-color:#2c3e50;padding:20px;border-radius:10px;margin-bottom:30px">
-        <h1 style="color:white;text-align:center;">🚀 cofounder.ai</h1>
-        <p style="color:white;text-align:center;margin-bottom:0;">Your AI-powered startup intelligence platform</p>
+    <div class="premium-header">
+        <h1 style="color:white;margin:0;">cofounder.ai</h1>
+        <p style="color:white;margin:0;font-size:1.2rem;">The AI-powered startup intelligence platform</p>
     </div>
     """, unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["📑 Slide Analyzer", "💰 Investor Matching", "📰 Startup News"])
-    
-    with tab1:
-        st.header("AI Slide Analyzer")
+    # Authentication check
+    if not st.session_state.authenticated:
+        email = st.text_input("Email Address")
+        password = st.text_input("Password", type="password")
         
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            user_category = st.selectbox("Your Role", ["Student", "Educator", "Business Professional", "Startup Founder"])
-        with col2:
-            purpose = st.selectbox("Presentation Purpose", ["Business", "Academic", "Pitch", "Report"])
-        with col3:
-             desired_action = st.selectbox("What do you want to do with this content?", ["Summarize", "Extract Key Points", "Get AI Suggestions"])
-            
-        detail_level = st.slider(
-            "Analysis Depth", 
-            min_value=1, 
-            max_value=10, 
-            value=5, 
-            help="1 = Basic overview, 10 = Comprehensive detailed analysis"
-        )
-        
-        uploaded_file = st.file_uploader("Upload Presentation", type=["pptx", "pdf", "png", "jpg", "jpeg"])
-        
-        if uploaded_file:
-            with st.spinner("Analyzing presentation..."):
-                try:
-                    extracted_text = extract_text(uploaded_file)
-                    response = openai.ChatCompletion.create(
-                        model="gpt-4.1",
-                        messages=[
-                            {"role": "system", "content": "You are a professional presentation analyzer."},
-                            {"role": "user", "content": f"""
-                            Analyze this presentation for {purpose}, user type {user_category}.
-                            Provide constructive feedback on:
-                            1. Content clarity
-                            2. Structural effectiveness
-                            3. Engagement potential
-                            4. Areas of improvement
-                            
-                            Presentation Text:
-                            {extracted_text}
-                            """}
-                        ]
-                    )
-                    feedback = response["choices"][0]["message"]["content"]
-                    
-                    # Display feedback in a styled container
-                    with st.expander("🔍 AI Analysis Results", expanded=True):
-                        st.markdown(f"""
-                        <div style="background-color:#f0f2f6;padding:15px;border-radius:10px;">
-                            {feedback}
-                        </div>
-                        """, unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(f"AI Analysis Error: {e}")
-    
-    with tab2:
-        st.header("Investor Matching - India's Top Investors")
-        
-        # Startup Details
-        startup_idea = st.text_area("Describe Your Startup Concept", height=150, 
-                                   placeholder="Describe your startup idea in 2-3 sentences...")
-        
-        # Funding and Industry Selection
         col1, col2 = st.columns(2)
         with col1:
-            funding_stage = st.selectbox("Funding Stage", [
-                "Pre-Seed", "Seed", "Series A", 
-                "Series B", "Growth Stage"
-            ])
-        
+            if st.button("Login"):
+                # In a real app, verify credentials against your database
+                st.session_state.authenticated = True
+                st.session_state.premium_user = True  # For demo purposes
+                st.rerun()
         with col2:
-            industry = st.selectbox("Industry", [
-                "Tech", "Healthcare", "Finance", 
-                "E-commerce", "Deep Tech", 
-                "Green Energy", "AI/ML"
-            ])
+            if st.button("Sign Up"):
+                show_pricing_plans()
+        return
+    
+    # Main tabs
+    tab1, tab2, tab3, tab4 = st.tabs(["🏠 Dashboard", "💰 Fundraising", "📊 Analytics", "⚙️ Account"])
+    
+    with tab1:
+        st.header("Startup Intelligence Dashboard")
         
-        # Find Investors Button with better styling
-        if st.button("🚀 Find Matching Investors", use_container_width=True):
-            with st.spinner("Analyzing your startup and matching with top investors..."):
-                matched_investors, analysis = match_investors(startup_idea, industry, funding_stage)
-                
-                # Display analysis in a styled container
-                st.subheader("🔍 Startup Analysis")
-                st.markdown(f"""
-                <div style="background-color:#e8f4fd;padding:15px;border-radius:10px;border-left:4px solid #2c3e50;">
-                    {analysis}
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Display matched investors
-                st.subheader("🌟 Top Recommended Investors")
-                
-                # Display investors in cards
-                for i, investor in enumerate(matched_investors):
-                    st.markdown(f"""
-                    <div class="investor-card">
-                        <h3>{i+1}. {investor['name']}</h3>
-                        <p><strong>Focus:</strong> {investor['focus']}</p>
-                        <p><strong>Location:</strong> {investor['location']}</p>
-                        <p><strong>Typical Investment:</strong> {investor['typical_check']}</p>
-                        <p><strong>Notable Investments:</strong> {investor['portfolio']}</p>
-                        <p><a href="{investor['website']}" target="_blank">Visit Website</a></p>
+        # Quick analysis section
+        with st.expander("🚀 Quick Startup Analysis", expanded=True):
+            startup_idea = st.text_area("Describe your startup (2-3 sentences)", height=100)
+            industry = st.selectbox("Industry", ["Tech", "FinTech", "HealthTech", "EdTech", "AI/ML", "E-commerce", "Other"])
+            
+            if st.button("Analyze My Startup"):
+                if startup_idea.strip():
+                    with st.spinner("Generating insights..."):
+                        # Generate multiple analyses in parallel
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("""
+                            <div class="premium-card">
+                                <h4>Competitive Landscape</h4>
+                            """, unsafe_allow_html=True)
+                            analysis = generate_competitor_analysis(startup_idea, industry)
+                            if analysis:
+                                st.write(analysis)
+                            st.markdown("</div>", unsafe_allow_html=True)
+                        
+                        with col2:
+                            st.markdown("""
+                            <div class="premium-card">
+                                <h4>Funding Strategy</h4>
+                            """, unsafe_allow_html=True)
+                            strategy = generate_funding_strategy(startup_idea, industry, "Seed")
+                            if strategy:
+                                st.write(strategy)
+                            st.markdown("</div>", unsafe_allow_html=True)
+                else:
+                    st.warning("Please describe your startup idea")
+        
+        # Recent activity section
+        st.markdown("""
+        <div class="premium-card">
+            <h4>📈 Your Startup Health Score</h4>
+            <p>Coming soon: Track your startup's progress across key metrics</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with tab2:
+        st.header("Fundraising Toolkit")
+        
+        # Investor matching section
+        with st.expander("🔍 Smart Investor Matching", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                funding_stage = st.selectbox("Funding Stage", ["Pre-Seed", "Seed", "Series A", "Series B", "Growth"])
+                industry = st.selectbox("Industry", ["Tech", "FinTech", "HealthTech", "EdTech", "AI/ML", "E-commerce"])
+            with col2:
+                geography = st.selectbox("Geography", ["Global", "North America", "Europe", "Asia", "India"])
+                ticket_size = st.selectbox("Ticket Size", ["$100K-$500K", "$500K-$2M", "$2M-$5M", "$5M-$10M", "$10M+"])
+            
+            if st.button("Find Investors"):
+                # Simulate investor matching
+                with st.spinner("Matching with ideal investors..."):
+                    time.sleep(2)
+                    
+                    # Display premium investor cards
+                    st.markdown("""
+                    <div class="premium-card">
+                        <h4>Sequoia Capital</h4>
+                        <p><strong>Focus:</strong> Early-stage tech, AI/ML, SaaS</p>
+                        <p><strong>Recent Investments:</strong> 15 in last 6 months</p>
+                        <p><strong>Match Score:</strong> 92%</p>
+                        <button>View Full Profile (Premium)</button>
                     </div>
                     """, unsafe_allow_html=True)
+                    
+                    st.markdown("""
+                    <div class="premium-card">
+                        <h4>Accel Partners</h4>
+                        <p><strong>Focus:</strong> FinTech, Marketplaces</p>
+                        <p><strong>Recent Investments:</strong> 8 in last 6 months</p>
+                        <p><strong>Match Score:</strong> 87%</p>
+                        <button>View Full Profile (Premium)</button>
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        # Pitch deck analyzer
+        with st.expander("📑 AI Pitch Deck Review", expanded=True):
+            uploaded_file = st.file_uploader("Upload your pitch deck (PDF or PPTX)", type=["pdf", "pptx"])
+            if uploaded_file:
+                with st.spinner("Extracting content..."):
+                    # Extract text from file
+                    text = ""
+                    if uploaded_file.type == "application/pdf":
+                        doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+                        text = "\n".join([page.get_text("text") for page in doc])
+                    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+                        prs = Presentation(uploaded_file)
+                        text = "\n".join(["\n".join([shape.text for shape in slide.shapes if hasattr(shape, "text")]) for slide in prs.slides])
+                
+                if text:
+                    review = generate_pitch_deck_review(text)
+                    if review:
+                        st.markdown(f"""
+                        <div class="premium-card">
+                            <h4>Pitch Deck Analysis</h4>
+                            {review}
+                        </div>
+                        """, unsafe_allow_html=True)
     
     with tab3:
-        st.header("📰 Latest Startup News")
+        st.header("Advanced Analytics")
         
-        # Refresh button with better styling
-        if st.button("🔄 Refresh News", key="refresh_news"):
-            st.rerun()
+        if not check_premium_access():
+            show_pricing_plans()
+            return
         
-        # Add news category filter
-        news_items = fetch_enhanced_news()
-        
-        if news_items:
-            # Get unique categories
-            categories = list(set([item['category'] for item in news_items]))
-            categories.insert(0, "All Categories")
+        # Market analysis section
+        with st.expander("🌍 Market Size Analysis", expanded=True):
+            industry = st.selectbox("Select Industry", ["FinTech", "EdTech", "HealthTech", "AI/ML", "E-commerce"])
+            region = st.selectbox("Select Region", ["Global", "North America", "Europe", "Asia", "India"])
             
-            selected_category = st.selectbox("Filter by Category", categories)
-            
-            # Filter news by category
-            if selected_category != "All Categories":
-                news_items = [item for item in news_items if item['category'] == selected_category]
-            
-            # Create 3-column layout
-            cols = st.columns(3)
-            
-            # Display news items in cards
-            for i, news in enumerate(news_items):
-                col = cols[i % 3]  # Distribute across columns
-                
-                with col:
-                    # Create a news card
-                    st.markdown(f"""
-                    <div class="news-card">
-                        <h4>{news['title']}</h4>
-                        <p><small><strong>{news['source']}</strong> | {news['category']}</small></p>
-                        <p><small>{news['published']}</small></p>
-                    """, unsafe_allow_html=True)
+            if st.button("Generate Market Report"):
+                with st.spinner("Generating market intelligence..."):
+                    time.sleep(3)
                     
-                    # Display image if available
-                    if news['image_data']:
-                        try:
-                            image = Image.open(io.BytesIO(news['image_data']))
-                            st.image(image, use_container_width=True)
-                        except Exception as e:
-                            st.warning("Could not display image")
-                    
-                    # Continue the card HTML
-                    st.markdown(f"""
-                        <p>{news['description'][:150]}...</p>
-                        <a href="{news['link']}" target="_blank">Read more</a>
+                    # Simulate market analysis report
+                    st.markdown("""
+                    <div class="premium-card">
+                        <h4>Market Analysis: {industry} in {region}</h4>
+                        <p><strong>Total Addressable Market:</strong> $12.4B (2024)</p>
+                        <p><strong>Growth Rate:</strong> 18.7% CAGR</p>
+                        <p><strong>Key Segments:</strong></p>
+                        <ul>
+                            <li>Segment A: $4.2B (34%)</li>
+                            <li>Segment B: $3.1B (25%)</li>
+                            <li>Segment C: $2.8B (23%)</li>
+                        </ul>
+                        <p><strong>Top Players:</strong> Company X (22% share), Company Y (18%), Company Z (12%)</p>
+                        <button>Download Full Report (PDF)</button>
                     </div>
-                    """, unsafe_allow_html=True)
+                    """.format(industry=industry, region=region), unsafe_allow_html=True)
+        
+        # Competitive intelligence
+        with st.expander("🕵️ Competitor Intelligence", expanded=True):
+            company_name = st.text_input("Enter competitor name")
+            if company_name and st.button("Analyze Competitor"):
+                with st.spinner("Gathering competitive intelligence..."):
+                    time.sleep(3)
+                    
+                    # Simulate competitor analysis
+                    st.markdown("""
+                    <div class="premium-card">
+                        <h4>Competitor Analysis: {company_name}</h4>
+                        <p><strong>Funding:</strong> Series B ($15M raised)</p>
+                        <p><strong>Growth Rate:</strong> 120% YoY</p>
+                        <p><strong>Key Metrics:</strong></p>
+                        <ul>
+                            <li>ARR: $8.2M</li>
+                            <li>Customers: 1,250</li>
+                            <li>Team Size: 85</li>
+                        </ul>
+                        <p><strong>Strengths:</strong> Strong brand, efficient CAC</p>
+                        <p><strong>Weaknesses:</strong> High churn, concentrated customer base</p>
+                        <button>View Full Analysis</button>
+                    </div>
+                    """.format(company_name=company_name), unsafe_allow_html=True)
+    
+    with tab4:
+        st.header("Account Settings")
+        
+        if check_premium_access():
+            st.success("🌟 You are on a Premium Plan (Startup Pro)")
+            st.write("Next billing date: March 15, 2024")
+            
+            if st.button("Manage Subscription"):
+                # In a real app, link to Stripe customer portal
+                st.write("Redirecting to subscription management...")
+            
+            if st.button("Download Invoice"):
+                st.write("Invoice downloaded")
         else:
-            st.warning("No news available at the moment. Please try again later.")
+            show_pricing_plans()
 
 if __name__ == "__main__":
     main()
