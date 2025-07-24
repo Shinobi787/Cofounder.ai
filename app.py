@@ -11,10 +11,6 @@ import io
 import time
 from datetime import datetime
 import json
-import stripe
-
-# Configure Stripe for payments (you'll need to set up your Stripe account)
-stripe.api_key = st.secrets["STRIPE_API_KEY"]
 
 # Premium features configuration
 PREMIUM_FEATURES = {
@@ -222,6 +218,11 @@ def show_pricing_plans():
 def handle_subscription(price_id):
     """Handle Stripe subscription"""
     try:
+        # Import stripe only when needed
+        import stripe
+        # Configure Stripe using secrets
+        stripe.api_key = st.secrets["STRIPE_API_KEY"]
+        
         checkout_session = stripe.checkout.Session.create(
             line_items=[
                 {
@@ -235,6 +236,8 @@ def handle_subscription(price_id):
         )
         st.session_state.stripe_session_id = checkout_session.id
         st.write(f"Please complete your payment [here]({checkout_session.url})")
+    except ModuleNotFoundError:
+        st.error("Payment processing unavailable: Stripe library not installed. Please install with `pip install stripe`")
     except Exception as e:
         st.error(f"Error creating checkout session: {e}")
 
