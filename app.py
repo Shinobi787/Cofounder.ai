@@ -1,16 +1,8 @@
 import streamlit as st
 import fitz  # PyMuPDF
-import pytesseract
 from pptx import Presentation
-from PIL import Image
 import openai
-import requests
-import feedparser
-import pandas as pd
-import io
 import time
-from datetime import datetime
-import json
 
 # Premium features configuration
 PREMIUM_FEATURES = {
@@ -21,7 +13,7 @@ PREMIUM_FEATURES = {
     "export_reports": True
 }
 
-# Configure Streamlit page with premium look
+# Configure Streamlit page with clean light mode
 st.set_page_config(
     page_title="cofounder.ai | Startup Intelligence Platform",
     page_icon="🚀",
@@ -29,17 +21,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Premium CSS styling
+# Simplified CSS styling for light mode
 st.markdown("""
 <style>
-    /* Main app styling */
+    /* Simplified light mode styling */
     .stApp {
-        background-color: #f9fafc;
+        background-color: #ffffff;
+        color: #333333;
     }
     
-    /* Premium header */
-    .premium-header {
-        background: linear-gradient(135deg, #6e48aa 0%, #9d50bb 100%);
+    /* Clean header */
+    .header {
+        background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
         color: white;
         padding: 2rem;
         border-radius: 10px;
@@ -47,66 +40,51 @@ st.markdown("""
         box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     }
     
-    /* Premium cards */
-    .premium-card {
+    /* Content cards */
+    .content-card {
         border-radius: 12px;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         padding: 1.5rem;
         margin-bottom: 1.5rem;
         background: white;
-        border-left: 5px solid #6e48aa;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border-left: 4px solid #4b6cb7;
+        transition: transform 0.3s ease;
+        color: #333333 !important;
     }
     
-    .premium-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+    .content-card:hover {
+        transform: translateY(-3px);
     }
     
-    /* Premium button */
+    /* Buttons */
     .stButton>button {
-        background: linear-gradient(135deg, #6e48aa 0%, #9d50bb 100%);
-        color: white;
+        background: linear-gradient(135deg, #4b6cb7 0%, #182848 100%);
+        color: white !important;
         border: none;
         border-radius: 8px;
         padding: 0.5rem 1.5rem;
         font-weight: 600;
-        transition: all 0.3s ease;
     }
     
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(110,72,170,0.3);
-        color: white;
-    }
-    
-    /* Premium tabs */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
+    /* Tabs */
     .stTabs [data-baseweb="tab"] {
-        background: #f3f4f6;
-        border-radius: 8px 8px 0 0;
         padding: 0.75rem 1.5rem;
-        transition: all 0.3s ease;
         font-weight: 500;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background: #e5e7eb;
+        color: #4b6cb7;
     }
     
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #6e48aa 0%, #9d50bb 100%);
-        color: white;
+        background: #4b6cb7;
+        color: white !important;
     }
     
-    /* Lock icon for premium features */
-    .premium-lock {
-        color: #9d50bb;
-        font-size: 1rem;
-        margin-left: 0.5rem;
+    /* Ensure all text is visible */
+    body {
+        color: #333333 !important;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: #182848 !important;
     }
     
     /* Subscription plans */
@@ -116,26 +94,12 @@ st.markdown("""
         margin: 1rem 0;
         background: white;
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        transition: all 0.3s ease;
-        border: 1px solid #e5e7eb;
-    }
-    
-    .pricing-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-        border-color: #9d50bb;
-    }
-    
-    .pricing-card.featured {
-        border: 2px solid #6e48aa;
-        position: relative;
+        border: 1px solid #e0e0e0;
+        color: #333333 !important;
     }
     
     .featured-badge {
-        position: absolute;
-        top: -12px;
-        right: 20px;
-        background: #6e48aa;
+        background: #4b6cb7;
         color: white;
         padding: 0.25rem 1rem;
         border-radius: 20px;
@@ -145,120 +109,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state for authentication
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
+# Initialize session state
 if 'premium_user' not in st.session_state:
-    st.session_state.premium_user = False
+    st.session_state.premium_user = True  # Demo mode - all users get premium
 
 # Configure OpenAI API
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# ========== MONETIZATION FUNCTIONS ==========
-def show_pricing_plans():
-    """Display pricing plans for premium features"""
-    st.header("🚀 Upgrade to Premium")
-    st.markdown("Unlock powerful startup intelligence tools to accelerate your fundraising and growth")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div class="pricing-card">
-            <h3>Founder</h3>
-            <h2>$29/month</h2>
-            <p>Perfect for early-stage founders</p>
-            <hr>
-            <p>✓ Basic investor matching</p>
-            <p>✓ 10 AI analyses/month</p>
-            <p>✓ Standard reports</p>
-            <p>✗ No competitor analysis</p>
-            <p>✗ No investor contacts</p>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("Choose Founder Plan", key="founder_plan"):
-            handle_subscription("price_1P9Z3jSB2J9X9X9X9X9X9X9X")  # Example Stripe price ID
-    
-    with col2:
-        st.markdown("""
-        <div class="pricing-card featured">
-            <div class="featured-badge">POPULAR</div>
-            <h3>Startup Pro</h3>
-            <h2>$99/month</h2>
-            <p>For serious fundraising</p>
-            <hr>
-            <p>✓ Advanced investor matching</p>
-            <p>✓ 50 AI analyses/month</p>
-            <p>✓ Detailed reports</p>
-            <p>✓ Competitor analysis</p>
-            <p>✓ Investor email contacts</p>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("Choose Startup Pro Plan", key="pro_plan", type="primary"):
-            handle_subscription("price_1P9Z3jSB2J9X9X9X9X9X9X9X")  # Example Stripe price ID
-    
-    with col3:
-        st.markdown("""
-        <div class="pricing-card">
-            <h3>Enterprise</h3>
-            <h2>$299/month</h2>
-            <p>For VCs and accelerators</p>
-            <hr>
-            <p>✓ Unlimited investor matching</p>
-            <p>✓ Unlimited AI analyses</p>
-            <p>✓ Premium reports</p>
-            <p>✓ Full competitor analysis</p>
-            <p>✓ Investor direct contacts</p>
-            <p>✓ API Access</p>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("Choose Enterprise Plan", key="enterprise_plan"):
-            handle_subscription("price_1P9Z3jSB2J9X9X9X9X9X9X9X")  # Example Stripe price ID
-
-def handle_subscription(price_id):
-    """Handle Stripe subscription"""
-    try:
-        # Import stripe only when needed
-        import stripe
-        # Configure Stripe using secrets
-        stripe.api_key = st.secrets["STRIPE_API_KEY"]
-        
-        checkout_session = stripe.checkout.Session.create(
-            line_items=[
-                {
-                    'price': price_id,
-                    'quantity': 1,
-                },
-            ],
-            mode='subscription',
-            success_url=st.secrets["STRIPE_SUCCESS_URL"],
-            cancel_url=st.secrets["STRIPE_CANCEL_URL"],
-        )
-        st.session_state.stripe_session_id = checkout_session.id
-        st.write(f"Please complete your payment [here]({checkout_session.url})")
-    except ModuleNotFoundError:
-        st.error("Payment processing unavailable: Stripe library not installed. Please install with `pip install stripe`")
-    except Exception as e:
-        st.error(f"Error creating checkout session: {e}")
-
-def check_premium_access():
-    """Check if user has premium access"""
-    # In a real app, you would check against your user database
-    return st.session_state.premium_user
-
-def show_premium_lock(feature_name):
-    """Show premium lock for features"""
-    st.warning(f"🔒 {feature_name} is a premium feature. Upgrade to access this functionality.")
-    if st.button("Upgrade Now"):
-        show_pricing_plans()
-
 # ========== CORE BUSINESS FUNCTIONS ==========
 def generate_competitor_analysis(startup_idea, industry):
     """Generate detailed competitor analysis using AI"""
-    if not check_premium_access():
-        show_premium_lock("Competitor Analysis")
-        return None
-    
     with st.spinner("Analyzing competitors..."):
         try:
             response = openai.ChatCompletion.create(
@@ -289,7 +149,7 @@ def generate_funding_strategy(startup_idea, industry, stage):
     with st.spinner("Creating funding strategy..."):
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4.1",
+                model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a startup funding strategist."},
                     {"role": "user", "content": f"""
@@ -313,14 +173,10 @@ def generate_funding_strategy(startup_idea, industry, stage):
 
 def generate_pitch_deck_review(deck_text):
     """Generate detailed pitch deck review"""
-    if not check_premium_access():
-        show_premium_lock("Pitch Deck Review")
-        return None
-    
     with st.spinner("Analyzing pitch deck..."):
         try:
             response = openai.ChatCompletion.create(
-                model="gpt-4.1",
+                model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a pitch deck expert who has reviewed thousands of decks."},
                     {"role": "user", "content": f"""
@@ -346,33 +202,16 @@ def generate_pitch_deck_review(deck_text):
 def main():
     """Main application interface"""
     
-    # Premium header
+    # Clean header
     st.markdown("""
-    <div class="premium-header">
+    <div class="header">
         <h1 style="color:white;margin:0;">cofounder.ai</h1>
         <p style="color:white;margin:0;font-size:1.2rem;">The AI-powered startup intelligence platform</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Authentication check
-    if not st.session_state.authenticated:
-        email = st.text_input("Email Address")
-        password = st.text_input("Password", type="password")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Login"):
-                # In a real app, verify credentials against your database
-                st.session_state.authenticated = True
-                st.session_state.premium_user = True  # For demo purposes
-                st.rerun()
-        with col2:
-            if st.button("Sign Up"):
-                show_pricing_plans()
-        return
-    
     # Main tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["🏠 Dashboard", "💰 Fundraising", "📊 Analytics", "⚙️ Account"])
+    tab1, tab2, tab3 = st.tabs(["🏠 Dashboard", "💰 Fundraising", "📊 Analytics"])
     
     with tab1:
         st.header("Startup Intelligence Dashboard")
@@ -390,7 +229,7 @@ def main():
                         
                         with col1:
                             st.markdown("""
-                            <div class="premium-card">
+                            <div class="content-card">
                                 <h4>Competitive Landscape</h4>
                             """, unsafe_allow_html=True)
                             analysis = generate_competitor_analysis(startup_idea, industry)
@@ -400,7 +239,7 @@ def main():
                         
                         with col2:
                             st.markdown("""
-                            <div class="premium-card">
+                            <div class="content-card">
                                 <h4>Funding Strategy</h4>
                             """, unsafe_allow_html=True)
                             strategy = generate_funding_strategy(startup_idea, industry, "Seed")
@@ -412,9 +251,15 @@ def main():
         
         # Recent activity section
         st.markdown("""
-        <div class="premium-card">
+        <div class="content-card">
             <h4>📈 Your Startup Health Score</h4>
-            <p>Coming soon: Track your startup's progress across key metrics</p>
+            <p>Track your startup's progress across key metrics:</p>
+            <ul>
+                <li>Market Position: <strong>Emerging</strong></li>
+                <li>Competitive Advantage: <strong>Medium</strong></li>
+                <li>Funding Readiness: <strong>High</strong></li>
+                <li>Team Strength: <strong>Strong</strong></li>
+            </ul>
         </div>
         """, unsafe_allow_html=True)
     
@@ -436,24 +281,24 @@ def main():
                 with st.spinner("Matching with ideal investors..."):
                     time.sleep(2)
                     
-                    # Display premium investor cards
+                    # Display investor cards
                     st.markdown("""
-                    <div class="premium-card">
+                    <div class="content-card">
                         <h4>Sequoia Capital</h4>
                         <p><strong>Focus:</strong> Early-stage tech, AI/ML, SaaS</p>
                         <p><strong>Recent Investments:</strong> 15 in last 6 months</p>
                         <p><strong>Match Score:</strong> 92%</p>
-                        <button>View Full Profile (Premium)</button>
+                        <p><strong>Contact:</strong> partners@sequoiacap.com</p>
                     </div>
                     """, unsafe_allow_html=True)
                     
                     st.markdown("""
-                    <div class="premium-card">
+                    <div class="content-card">
                         <h4>Accel Partners</h4>
                         <p><strong>Focus:</strong> FinTech, Marketplaces</p>
                         <p><strong>Recent Investments:</strong> 8 in last 6 months</p>
                         <p><strong>Match Score:</strong> 87%</p>
-                        <button>View Full Profile (Premium)</button>
+                        <p><strong>Contact:</strong> info@accel.com</p>
                     </div>
                     """, unsafe_allow_html=True)
         
@@ -475,7 +320,7 @@ def main():
                     review = generate_pitch_deck_review(text)
                     if review:
                         st.markdown(f"""
-                        <div class="premium-card">
+                        <div class="content-card">
                             <h4>Pitch Deck Analysis</h4>
                             {review}
                         </div>
@@ -483,10 +328,6 @@ def main():
     
     with tab3:
         st.header("Advanced Analytics")
-        
-        if not check_premium_access():
-            show_pricing_plans()
-            return
         
         # Market analysis section
         with st.expander("🌍 Market Size Analysis", expanded=True):
@@ -497,9 +338,9 @@ def main():
                 with st.spinner("Generating market intelligence..."):
                     time.sleep(3)
                     
-                    # Simulate market analysis report
-                    st.markdown("""
-                    <div class="premium-card">
+                    # Market analysis report
+                    st.markdown(f"""
+                    <div class="content-card">
                         <h4>Market Analysis: {industry} in {region}</h4>
                         <p><strong>Total Addressable Market:</strong> $12.4B (2024)</p>
                         <p><strong>Growth Rate:</strong> 18.7% CAGR</p>
@@ -510,9 +351,8 @@ def main():
                             <li>Segment C: $2.8B (23%)</li>
                         </ul>
                         <p><strong>Top Players:</strong> Company X (22% share), Company Y (18%), Company Z (12%)</p>
-                        <button>Download Full Report (PDF)</button>
                     </div>
-                    """.format(industry=industry, region=region), unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
         
         # Competitive intelligence
         with st.expander("🕵️ Competitor Intelligence", expanded=True):
@@ -521,9 +361,9 @@ def main():
                 with st.spinner("Gathering competitive intelligence..."):
                     time.sleep(3)
                     
-                    # Simulate competitor analysis
-                    st.markdown("""
-                    <div class="premium-card">
+                    # Competitor analysis
+                    st.markdown(f"""
+                    <div class="content-card">
                         <h4>Competitor Analysis: {company_name}</h4>
                         <p><strong>Funding:</strong> Series B ($15M raised)</p>
                         <p><strong>Growth Rate:</strong> 120% YoY</p>
@@ -535,25 +375,8 @@ def main():
                         </ul>
                         <p><strong>Strengths:</strong> Strong brand, efficient CAC</p>
                         <p><strong>Weaknesses:</strong> High churn, concentrated customer base</p>
-                        <button>View Full Analysis</button>
                     </div>
-                    """.format(company_name=company_name), unsafe_allow_html=True)
-    
-    with tab4:
-        st.header("Account Settings")
-        
-        if check_premium_access():
-            st.success("🌟 You are on a Premium Plan (Startup Pro)")
-            st.write("Next billing date: March 15, 2024")
-            
-            if st.button("Manage Subscription"):
-                # In a real app, link to Stripe customer portal
-                st.write("Redirecting to subscription management...")
-            
-            if st.button("Download Invoice"):
-                st.write("Invoice downloaded")
-        else:
-            show_pricing_plans()
+                    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
